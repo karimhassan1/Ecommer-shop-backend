@@ -18,7 +18,6 @@ use Illuminate\Support\Str;
     input_override:[
         'password'=>'String'
     ],
-    directives:['@guard']
 )]
 class User extends Authenticatable implements MustVerifyEmail
 {
