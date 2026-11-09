@@ -1,0 +1,36 @@
+# Dependencies and build output are produced inside the image.
+vendor
+node_modules
+public/build
+public/hot
+public/storage
+
+# Local environment / secrets.
+.env
+.env.*
+!.env.example
+
+# Tooling caches and editor noise.
+.git
+.gitignore
+.vscode
+.idea
+.phpunit.result.cache
+.phpunit.cache
+
+# Stored files must not be baked in (they live on a volume).
+storage/app/public/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+bootstrap/cache/*.php
+
+# Local SQLite database shipped by the skeleton.
+database/*.sqlite
+
+# The Docker files themselves.
+Dockerfile
+Dockerfile.new
+.dockerignore
+docker-compose.yml
