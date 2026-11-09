@@ -56,6 +56,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frontend URL
+    |--------------------------------------------------------------------------
+    |
+    | The SPA is served from a different origin than the API. Email links and
+    | CORS rely on this value, so keep it in sync with the frontend dev/build
+    | server URL.
+    |
+    */
+
+    'frontend_url' => env('FRONTEND_URL', 'https://karimdev.site'),
+
+    'admin_email' => env('ADMIN_EMAIL', 'admin@roserabloom.test'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

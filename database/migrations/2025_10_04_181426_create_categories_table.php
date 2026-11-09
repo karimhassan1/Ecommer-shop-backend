@@ -14,7 +14,12 @@ return new class extends Migration
         Schema::create('categories', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('slug')->unique();
+            $table->enum('type', ['clothing', 'perfume'])->default('clothing');
+            $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
+
+            $table->index(['type', 'sort_order']);
         });
     }
 

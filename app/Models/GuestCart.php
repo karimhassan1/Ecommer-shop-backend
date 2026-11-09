@@ -8,21 +8,18 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Nodesol\LaraQL\Attributes\Model as AttributesModel;
 
-#[AttributesModel(
-    input_override:[
-        'token'=>'String'
-    ]
-)]
+/**
+ * Guest carts live in the browser; they are internal bookkeeping and are not
+ * exposed through the API at all.
+ */
 #[ObservedBy(GuestCartObserver::class)]
 class GuestCart extends Model
 {
-    //
-    protected $fillable =
-    [
-        'token'
+    protected $fillable = [
+        'token',
     ];
 
-    public function CartItem():HasMany
+    public function cartItem(): HasMany
     {
         return $this->hasMany(GuestCartItem::class);
     }

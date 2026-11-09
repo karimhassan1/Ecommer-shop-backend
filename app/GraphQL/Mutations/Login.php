@@ -5,38 +5,71 @@ namespace App\GraphQL\Mutations;
 use App\Models\User;
 use GraphQL\Error\UserError;
 use Illuminate\Support\Facades\Hash;
-use Nodesol\LaraQL\Attributes\Type;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Nodesol\LaraQL\Attributes\Mutation;
+use Nodesol\LaraQL\Attributes\Type;
 
 #[Type(
-    columns_override:[
-        'token'=>'String!',
-        'user'=>"User!",
+    columns_override: [
+        'token' => 'String!',
+        'user' => 'User!',
+        'message' => 'String!',
     ]
 )]
 #[Mutation(
-    name:' ',
-    query:'@field(resolver:"Login")',
-    inputs:[
-        'email'=>'String! @rules(apply:["required","email"])',
-        'password'=>'String! @rules(apply:["required"])'
+    name: ' ',
+    query: '@field(resolver:"Login")',
+    inputs: [
+        'email' => 'String! @rules(apply:["required","email"])',
+        'password' => 'String! @rules(apply:["required"])'
     ]
 )]
 class Login
 {
+    /**
+     * Throttle key, one bucket per email + IP pair.
+     */
+    private const MAX_ATTEMPTS = 5;
+
+    private const DECAY_SECONDS = 60;
 
     public function __invoke($root, array $args)
     {
-        // TODO implement the resolver
+        $email = Str::lower(trim((string) $args['email']));
+        $throttleKey = $this->throttleKey($email);
 
-        $user = User::whereEmail($args['email'])->first();
+        if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_ATTEMPTS)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
 
-        if(!$user || !Hash::check($args['password'],$user->password)){
-            return new UserError('Invalid credentails ');
+            throw new UserError("Too many login attempts. Please try again in {$seconds} seconds.");
         }
 
-        $token = $user->createToken('token')->plainTextToken;
-        $data = ['user'=>$user,'token'=>$token];
-        return $data;
+        /** @var User|null $user */
+        $user = User::whereRaw('lower(email) = ?', [$email])->first();
+
+        if (! $user || ! Hash::check((string) $args['password'], $user->password)) {
+            RateLimiter::hit($throttleKey, self::DECAY_SECONDS);
+
+            throw new UserError('Invalid email or password.');
+        }
+
+        RateLimiter::clear($throttleKey);
+
+        $user->forceFill(['last_login_at' => now()])->save();
+
+        // A fresh token per device, old ones stay valid until they expire.
+        $token = $user->createToken('api')->plainTextToken;
+
+        return [
+            'user' => $user->fresh(),
+            'token' => $token,
+            'message' => 'Logged in successfully.',
+        ];
+    }
+
+    private function throttleKey(string $email): string
+    {
+        return 'login|'.Str::transliterate($email).'|'.request()->ip();
     }
 }

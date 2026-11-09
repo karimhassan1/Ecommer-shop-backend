@@ -6,23 +6,21 @@ use App\Observers\GuestCartItemObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Nodesol\LaraQL\Attributes\Model as AttributesModel;
 
-#[AttributesModel()]
-
+/**
+ * Guest cart lines are internal bookkeeping and not exposed through the API.
+ */
 #[ObservedBy(GuestCartItemObserver::class)]
 class GuestCartItem extends Model
 {
-    protected $fillable = 
-    [
+    protected $fillable = [
         'guest_cart_id',
         'product_id',
-        'quantity'
+        'quantity',
     ];
 
-    public function product():BelongsTo
+    public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
-
 }

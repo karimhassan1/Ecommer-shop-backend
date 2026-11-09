@@ -40,6 +40,21 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        /*
+         * Token based guard used by the GraphQL API. Every request from the SPA
+         * carries `Authorization: Bearer <token>`; Sanctum resolves the user
+         * from `personal_access_tokens`.
+         */
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
+
+        'api' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
     ],
 
     /*

@@ -2,40 +2,44 @@
 
 namespace App\GraphQL\Mutations;
 
-use App\Models\CartItem;
+use App\Models\GuestCart;
 use App\Models\GuestCartItem;
+use App\Services\CartService;
+use GraphQL\Error\UserError;
 use Nodesol\LaraQL\Attributes\Mutation;
 
-
 #[Mutation(
-    name:'',
-    query:'@field(resolver:"GuestCartEntry")',
-    inputs:[
-        'cart_id'=>'Int! @rules(apply:["required"])'
+    name: '',
+    query: '@field(resolver:"GuestCartEntry") @guard',
+    inputs: [
+        'cart_id' => 'Int! @rules(apply:["required"])'
     ],
-    return_type:'String!',
-    directives:['@guard']
+    return_type: 'String!',
 )]
 class GuestCartEntry
 {
+    public function __construct(private readonly CartService $cart) {}
+
     public function __invoke(null $root, array $args)
     {
-        $cartItems = GuestCartItem::whereGuestCartId($args['cart_id'])->get();
-        $user = auth()->user();
-        $cartId = $user->cart->id;
-        foreach ($cartItems as $item) {
-            CartItem::create([
-                'cart_id'=>$cartId,
-                'product_id' => $item->product_id,
-                'quantity'   => $item->quantity
-            ]);
+        $guestCart = GuestCart::find($args['cart_id']);
+
+        if (! $guestCart) {
+            throw new UserError('This guest cart no longer exists.');
         }
 
-        // Delete all guest items for that cart
-        GuestCartItem::whereGuestCartId($args['cart_id'])->delete();
+        $lines = GuestCartItem::whereGuestCartId($guestCart->id)
+            ->get()
+            ->map(fn (GuestCartItem $item): array => [
+                'product_id' => $item->product_id,
+                'quantity' => $item->quantity,
+            ])
+            ->all();
 
-        return "Cart items transferred successfully.";
+        $this->cart->mergeGuest(auth()->user(), $lines);
 
-        
+        GuestCartItem::whereGuestCartId($guestCart->id)->delete();
+
+        return 'Cart items transferred successfully.';
     }
 }
