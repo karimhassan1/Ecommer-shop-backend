@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Mail\ContactMessageMail;
-use App\Mail\EmailVerificationMail;
 use App\Mail\OrderConfirmationMail;
 use App\Mail\OrderStatusChangedMail;
 use App\Mail\PasswordResetMail;
@@ -32,19 +31,6 @@ class MailService
         $this->send($user->email, new WelcomeMail(
             customerName: $user->name,
             shopUrl: rtrim((string) config('app.frontend_url'), '/'),
-        ));
-    }
-
-    /**
-     * Generate a signed verification link for the user and email it.
-     */
-    public function sendEmailVerification(User $user): bool
-    {
-        $url = $this->verificationUrl($user);
-
-        return $this->send($user->email, new EmailVerificationMail(
-            customerName: $user->name,
-            verificationUrl: $url,
         ));
     }
 
@@ -166,12 +152,7 @@ class MailService
     {
         $frontend = rtrim((string) config('app.frontend_url'), '/');
 
-        $query = http_build_query([
-            'id' => $user->getKey(),
-            'hash' => sha1($user->getEmailForVerification()),
-        ]);
-
-        return $frontend.'/verify-email?'.$query;
+        return $frontend.'/auth/verify-email';
     }
 
     protected function resetUrl(User $user, string $token): string

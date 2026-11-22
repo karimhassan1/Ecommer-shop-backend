@@ -25,9 +25,13 @@ use Nodesol\LaraQL\Attributes\Query;
         'type: String',
         'category_id: ID',
         'category_slug: String',
+        'brand_id: ID',
+        'brand_slug: String',
         'min_price: Float',
         'max_price: Float',
         'in_stock_only: Boolean! = false',
+        'on_sale_only: Boolean! = false',
+        'sizes: [String!]',
         'include_inactive: Boolean! = false',
         'featured_only: Boolean! = false',
         'mine: Boolean! = false',
@@ -93,6 +97,20 @@ class BrowseProducts
                     fn ($q) => $q->where('slug', $args['category_slug'])
                 )
             )
+            ->when(
+                ! empty($args['brand_id']),
+                fn ($builder) => $builder->whereHas(
+                    'brands',
+                    fn ($q) => $q->whereKey((int) $args['brand_id'])
+                )
+            )
+            ->when(
+                ! empty($args['brand_slug']),
+                fn ($builder) => $builder->whereHas(
+                    'brands',
+                    fn ($q) => $q->where('slug', $args['brand_slug'])
+                )
+            )
             // A range matches the variant the customer could actually buy, so
             // the discount price is what the shop filters on. Column-to-value
             // comparisons are used (rather than a CASE expression) so the
@@ -111,6 +129,22 @@ class BrowseProducts
                     fn ($q) => $q->where('stock', '>', 0)->where('is_active', true)
                 );
             })
+            // "On sale" means at least one active variant has a usable discount.
+            ->when($args['on_sale_only'] ?? false, function ($builder): void {
+                $builder->whereHas('variants', function ($q): void {
+                    $q->where('is_active', true)
+                        ->whereNotNull('discount_price')
+                        ->whereColumn('discount_price', '<', 'price')
+                        ->where(function ($window): void {
+                            $window->whereNull('discount_starts_at')
+                                ->orWhere('discount_starts_at', '<=', now());
+                        })
+                        ->where(function ($window): void {
+                            $window->whereNull('discount_ends_at')
+                                ->orWhere('discount_ends_at', '>=', now());
+                        });
+                });
+            })
             ->when($search !== '', function ($builder) use ($search): void {
                 $term = '%'.strtolower($search).'%';
 
@@ -119,7 +153,22 @@ class BrowseProducts
                         ->orWhereRaw('lower(coalesce(description, \'\')) like ?', [$term])
                         ->orWhereRaw('lower(coalesce(fabric, \'\')) like ?', [$term]);
                 });
-            });
+            })
+            // Size / volume chips: a product matches when any active variant
+            // carries one of the selected labels.
+            ->when(
+                ! empty($args['sizes']),
+                function ($builder) use ($args): void {
+                    $labels = array_values(array_filter((array) $args['sizes']));
+
+                    $builder->whereHas('variants', function ($q) use ($labels): void {
+                        $q->where('is_active', true)->where(function ($match) use ($labels): void {
+                            $match->whereHas('size', fn ($size) => $size->whereIn('name', $labels))
+                                ->orWhereHas('volume', fn ($volume) => $volume->whereIn('label', $labels));
+                        });
+                    });
+                }
+            );
 
         match ((string) ($args['order_by'] ?? 'newest')) {
             'price_asc' => $query->orderBy(

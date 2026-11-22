@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Mail\EmailVerificationMail;
+use App\Mail\EmailVerificationCodeMail;
 use App\Mail\PasswordResetMail;
 use App\Mail\WelcomeMail;
 use App\Models\User;
@@ -43,7 +43,11 @@ class AuthenticationTest extends TestCase
         $this->assertNotEmpty($response->json('data.Register.token'));
 
         Mail::assertSent(WelcomeMail::class);
-        Mail::assertSent(EmailVerificationMail::class);
+
+        // Verification is code based: a six digit code is emailed, never a link.
+        Mail::assertSent(EmailVerificationCodeMail::class, function (EmailVerificationCodeMail $mail): bool {
+            return preg_match('/^\d{6}$/', $mail->code) === 1;
+        });
 
         // A brand new user always owns a cart.
         $this->assertNotNull(User::whereEmail('isabella@example.com')->first()->cart);

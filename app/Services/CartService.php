@@ -192,7 +192,9 @@ class CartService
                 'province' => $data['province'],
                 'city' => $data['city'],
                 'street' => $data['street'],
-                'postal_code' => (string) $data['postal_code'],
+                // Optional in Pakistan: stored as NULL when the customer leaves
+                // it blank (see the postal_code migration).
+                'postal_code' => ($data['postal_code'] ?? null) ?: null,
                 'notes' => $data['notes'] ?? null,
                 'status' => Order::STATUS_PENDING,
                 'payment_method' => $paymentMethod,

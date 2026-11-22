@@ -50,12 +50,12 @@ class Register
 
         $token = $user->createToken('api')->plainTextToken;
 
-        // Both emails are fire-and-forget, a mail outage never blocks signup.
+        // A welcome mail is fire-and-forget, a mail outage never blocks signup.
         $this->mail->sendWelcome($user);
-        $this->mail->sendEmailVerification($user);
 
-        // The six digit code is the flow the SPA actually uses: the customer is
-        // held on the verification screen until it is entered.
+        // Verification is code only: the customer types the six digit code we
+        // just emailed on the verification screen. There is no signed link to
+        // follow (see VerificationCodeService).
         $this->codes->send($user, enforceCooldown: false);
 
         return [
