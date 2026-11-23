@@ -18,7 +18,7 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
     input_override: [
         'user_id' => 'Int',
         'status' => 'String',
-        'postal_code' => 'String!',
+        'postal_code' => 'String',
         'total_amount' => 'Float',
         'subtotal' => 'Float',
         'shipping_amount' => 'Float',
@@ -45,7 +45,8 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
         'subtotal' => 'Float!',
         'shipping_amount' => 'Float!',
         'cod_fee' => 'Float!',
-        'postal_code' => 'String!',
+        // Optional: many Pakistani addresses have no postal code at all.
+        'postal_code' => 'String',
         'items' => '[OrderItem!]! @hasMany',
         'user' => 'User @belongsTo',
         'status_label' => 'String!',

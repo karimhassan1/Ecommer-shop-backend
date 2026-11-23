@@ -38,6 +38,7 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
     ],
     input_override: [
         'type' => 'String',
+        'audience' => 'String',
         'is_active' => 'Boolean',
         'is_featured' => 'Boolean',
         'rating_average' => 'Float',
@@ -46,6 +47,7 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
     ],
     type_override: [
         'type' => 'String!',
+        'audience' => 'String!',
         'is_active' => 'Boolean!',
         'is_featured' => 'Boolean!',
         'rating_average' => 'Float!',
@@ -81,8 +83,23 @@ class Product extends Model
      */
     public const TYPES = [self::TYPE_CLOTHING, self::TYPE_PERFUME];
 
+    /**
+     * Who a product is merchandised for.
+     *
+     * The storefront filters on this the same way it filters on `type`, so a
+     * jacket can sit under "Women's" without being duplicated.
+     */
+    public const AUDIENCE_MEN = 'men';
+
+    public const AUDIENCE_WOMEN = 'women';
+
+    public const AUDIENCE_UNISEX = 'unisex';
+
+    public const AUDIENCES = [self::AUDIENCE_MEN, self::AUDIENCE_WOMEN, self::AUDIENCE_UNISEX];
+
     protected $fillable = [
         'type',
+        'audience',
         'seller_id',
         'name',
         'description',
@@ -159,6 +176,16 @@ class Product extends Model
      */
     protected static function booted(): void
     {
+        // A blank or unknown audience would fall out of every storefront filter
+        // (including "Unisex"), so it is normalised on the way in.
+        static::saving(function (Product $product): void {
+            $audience = strtolower(trim((string) $product->audience));
+
+            $product->audience = in_array($audience, self::AUDIENCES, true)
+                ? $audience
+                : self::AUDIENCE_UNISEX;
+        });
+
         static::creating(function (Product $product): void {
             $user = auth()->user();
 

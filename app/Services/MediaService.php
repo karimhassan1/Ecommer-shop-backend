@@ -44,12 +44,14 @@ class MediaService
      * Base URL that relative image paths resolve against.
      *
      * Priority:
-     *   1. `MEDIA_URL` — explicit override (CDN, custom domain, MinIO endpoint)
+     *   1. `MEDIA_URL` — explicit override (CDN, custom domain)
      *   2. the disk's own configured `url`
-     *   3. for the local public disk, APP_URL/storage
+     *   3. Oracle Cloud Object Storage's public object URL, when the bucket
+     *      lives there (`OCI_NAMESPACE` set)
+     *   4. a generic S3 endpoint / virtual-hosted URL
+     *   5. the local public disk, APP_URL/storage
      *
-     * An empty string means "this disk produces absolute URLs already", which
-     * is the case for S3 when `AWS_URL` is set.
+     * An empty string means "this disk produces absolute URLs already".
      */
     public function baseUrl(): string
     {
@@ -65,27 +67,84 @@ class MediaService
             return rtrim(trim($diskUrl), '/');
         }
 
-        // An object store produces absolute URLs from its own details, so build
-        // the virtual-hosted style URL when only the bucket and region are set.
         if ($this->driver() === 's3') {
-            $bucket = (string) config('filesystems.disks.s3.bucket');
-            $endpoint = config('filesystems.disks.s3.endpoint');
-
-            if ($bucket === '') {
-                return '';
-            }
-
-            $region = (string) config('filesystems.disks.s3.region', 'us-east-1');
-
-            // A custom endpoint (MinIO, DigitalOcean Spaces) is used verbatim.
-            if (is_string($endpoint) && trim($endpoint) !== '') {
-                return rtrim(trim($endpoint), '/').'/'.$bucket;
-            }
-
-            return "https://{$bucket}.s3.{$region}.amazonaws.com";
+            return $this->objectStoreBaseUrl();
         }
 
         return rtrim((string) config('app.url'), '/').'/storage';
+    }
+
+    /**
+     * Public base URL of the configured object store bucket.
+     *
+     * Oracle Cloud Object Storage is the primary target. Its S3-compatible
+     * endpoint is NOT the URL a browser downloads from: a public object lives
+     * at
+     *
+     *   https://objectstorage.<region>.oraclecloud.com/n/<namespace>/b/<bucket>/o
+     *
+     * (the "native" API), which is why `OCI_PUBLIC_URL` can be given outright
+     * and, failing that, is assembled from `OCI_NAMESPACE` / `OCI_REGION`.
+     *
+     * Any other S3-compatible store (MinIO, DigitalOcean Spaces, plain AWS) is
+     * handled by the generic branches below, so switching providers is still a
+     * configuration change.
+     */
+    protected function objectStoreBaseUrl(): string
+    {
+        $bucket = (string) config('filesystems.disks.s3.bucket');
+
+        if ($bucket === '') {
+            return '';
+        }
+
+        // 1. Oracle Cloud: an explicit public URL wins.
+        $ociPublicUrl = (string) config('media.oci.url');
+
+        if (trim($ociPublicUrl) !== '') {
+            return rtrim(trim($ociPublicUrl), '/');
+        }
+
+        // 2. Oracle Cloud: assemble it from the namespace and region.
+        $namespace = trim((string) config('media.oci.namespace'));
+
+        if ($namespace !== '') {
+            $region = trim((string) config('media.oci.region'));
+
+            if ($region === '') {
+                // `us-sanjose-1` from the S3 endpoint / disk region.
+                $region = (string) config('filesystems.disks.s3.region', 'us-ashburn-1');
+            }
+
+            return rtrim(
+                "https://objectstorage.{$region}.oraclecloud.com/n/{$namespace}/b/{$bucket}/o",
+                '/'
+            );
+        }
+
+        // 3. A custom endpoint (MinIO, Spaces) is used verbatim.
+        $endpoint = config('filesystems.disks.s3.endpoint');
+
+        if (is_string($endpoint) && trim($endpoint) !== '') {
+            return rtrim(trim($endpoint), '/').'/'.$bucket;
+        }
+
+        // 4. Plain AWS S3, virtual-hosted style.
+        $region = (string) config('filesystems.disks.s3.region', 'us-east-1');
+
+        return "https://{$bucket}.s3.{$region}.amazonaws.com";
+    }
+
+    /**
+     * Whether uploads should be written with a public-read ACL.
+     *
+     * Oracle Cloud Object Storage's S3 compatibility layer ignores (and on
+     * some tenancies rejects) canned ACLs, so it is switched off there and the
+     * bucket's own visibility policy is used instead.
+     */
+    public function usesPublicAcl(): bool
+    {
+        return (bool) config('media.oci.public_acl', true);
     }
 
     /**
@@ -112,9 +171,12 @@ class MediaService
      */
     public function put(string $folder, string $filename, $file): string
     {
-        // S3 and most object stores want explicit public visibility; the local
-        // disk ignores it.
-        $this->disk()->putFileAs($folder, $file, $filename, ['visibility' => 'public']);
+        // S3 and most object stores want explicit public visibility, which the
+        // local disk ignores. Oracle Cloud ignores (and can reject) canned
+        // ACLs, so it relies on the bucket's own visibility policy instead.
+        $options = $this->usesPublicAcl() ? ['visibility' => 'public'] : [];
+
+        $this->disk()->putFileAs($folder, $file, $filename, $options);
 
         return trim($folder, '/').'/'.$filename;
     }

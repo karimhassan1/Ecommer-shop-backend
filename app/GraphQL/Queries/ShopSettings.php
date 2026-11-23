@@ -1,10 +1,13 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 namespace App\GraphQL\Queries;
 
 use App\Models\Review;
 use App\Services\MediaService;
 use App\Services\SettingService;
+use App\Support\Address;
 use Nodesol\LaraQL\Attributes\Query;
 use Nodesol\LaraQL\Attributes\Type;
 
@@ -28,6 +31,7 @@ use Nodesol\LaraQL\Attributes\Type;
         'payment_methods' => '[PaymentMethod!]!',
         'provinces' => '[Province!]!',
         'product_types' => '[ProductType!]!',
+        'audiences' => '[ProductType!]!',
         'clothing_sizes' => '[String!]!',
         'perfume_volumes' => '[String!]!',
         'support_email' => 'String!',
@@ -76,6 +80,13 @@ class ShopSettings
                 ])
                 ->values()
                 ->all(),
+            'audiences' => collect(config('shop.audiences', []))
+                ->map(fn (string $label, string $value): array => [
+                    'value' => $value,
+                    'label' => $label,
+                ])
+                ->values()
+                ->all(),
             'clothing_sizes' => config('shop.clothing_sizes', []),
             'perfume_volumes' => config('shop.perfume_volumes', []),
             'support_email' => $all['support_email'] ?? '',
@@ -94,16 +105,13 @@ class ShopSettings
     /**
      * Provinces with their cities, shaped for the checkout selects.
      *
+     * Served from App\Support\Address so the browser is offered exactly the
+     * list PlaceOrder validates against.
+     *
      * @return array<int, array{name: string, cities: array<int, string>}>
      */
     protected function provinces(): array
     {
-        $provinces = [];
-
-        foreach (config('shop.provinces', []) as $name => $cities) {
-            $provinces[] = ['name' => $name, 'cities' => array_values($cities)];
-        }
-
-        return $provinces;
+        return Address::provinceOptions();
     }
 }

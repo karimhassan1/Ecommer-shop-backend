@@ -2,7 +2,6 @@
 
 namespace App\GraphQL\Mutations;
 
-use App\Services\MailService;
 use App\Services\VerificationCodeService;
 use GraphQL\Error\UserError;
 use Nodesol\LaraQL\Attributes\Mutation;
@@ -11,9 +10,9 @@ use Nodesol\LaraQL\Attributes\Type;
 /**
  * Resend verification for the signed in customer.
  *
- * Both channels are refreshed at once — the signed link and the six digit
- * code — because the customer may come back from either the link in their
- * inbox or the code box on the verification screen.
+ * Verification is done with a six digit code (there is no signed link any
+ * more), so this simply issues a fresh code. The code service owns the
+ * cooldown, which is what stops a customer hammering the SMTP server.
  */
 #[Type(
     columns: [
@@ -29,7 +28,6 @@ use Nodesol\LaraQL\Attributes\Type;
 class ResendVerificationEmail
 {
     public function __construct(
-        private readonly MailService $mail,
         private readonly VerificationCodeService $codes,
     ) {}
 
@@ -42,17 +40,15 @@ class ResendVerificationEmail
             throw new UserError('Your email address is already verified.');
         }
 
-        // The code service owns the cooldown, so the two mails always travel
-        // together and a customer cannot hammer the SMTP server.
         $sent = $this->codes->send($user);
-        $this->mail->sendEmailVerification($user);
 
         return [
             'message' => $sent
-                ? 'A fresh 6 digit code and verification link have been sent to your email address.'
+                ? 'A fresh 6 digit code has been sent to your email address.'
                 : 'We could not send the verification email right now, please try again later.',
             'email' => (string) $user->email,
         ];
     }
 }
+
 

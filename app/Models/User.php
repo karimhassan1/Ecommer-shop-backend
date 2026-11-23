@@ -24,6 +24,7 @@ use Spatie\Permission\Traits\HasRoles;
     input_override: [
         'password' => 'String',
         'is_admin' => 'Boolean',
+        'is_active' => 'Boolean',
     ],
     operations: [
         'query' => [
@@ -43,18 +44,19 @@ use Spatie\Permission\Traits\HasRoles;
         ],
     ],
     type_override: [
-        'is_admin' => 'Boolean!',
+        'is_admin' => 'Boolean',
+        'is_active' => 'Boolean',
         'name' => 'String!',
         'email' => 'String!',
         'cart' => 'Cart @hasOne',
-        'cartItems' => '[CartItem!]! @hasMany',
-        'orders' => '[Order!]! @hasMany',
-        'products' => '[Product!]! @hasMany',
-        'role_list' => '[Role!]!',
-        'permission_list' => '[String!]!',
-        'is_staff' => 'Boolean!',
-        'is_seller' => 'Boolean!',
-        'is_email_verified' => 'Boolean!',
+        'cartItems' => '[CartItem!] @hasMany',
+        'orders' => '[Order!] @hasMany',
+        'products' => '[Product!] @hasMany',
+        'role_list' => '[Role!]',
+        'permission_list' => '[String!]',
+        'is_staff' => 'Boolean',
+        'is_seller' => 'Boolean',
+        'is_email_verified' => 'Boolean',
     ],
 )]
 class User extends Authenticatable implements MustVerifyEmail
@@ -111,9 +113,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'verification_code_expires_at' => 'datetime',
             'verification_attempts' => 'integer',
+            'is_admin' => 'boolean',
+            'is_active' => 'boolean',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
-            'is_admin' => 'boolean',
         ];
     }
 

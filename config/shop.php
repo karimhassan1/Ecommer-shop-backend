@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Address;
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -57,6 +59,23 @@ return [
         'perfume' => 'Perfume',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Merchandising audiences
+    |--------------------------------------------------------------------------
+    |
+    | The storefront offers "Men's", "Women's" and "Unisex" tabs inside each
+    | product type. A product belongs to exactly one of them
+    | (`products.audience`), so nothing is duplicated into two lists.
+    |
+    */
+
+    'audiences' => [
+        'men' => "Men's",
+        'women' => "Women's",
+        'unisex' => 'Unisex',
+    ],
+
     /** Default size list offered when adding clothing. Admin can override. */
     'clothing_sizes' => ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
 
@@ -82,21 +101,14 @@ return [
     'shipping_fee' => (float) env('SHOP_SHIPPING_FEE', 250),
 
     /**
-     * Provinces and their main cities, used by the checkout address form and
-     * the admin address displays.
+     * Provinces and their cities, used by the checkout address form and the
+     * admin address displays.
+     *
+     * The data itself lives in `config/pakistan.php` and is read through
+     * App\Support\Address, so the storefront, the profile form and the order
+     * validation always agree on which city belongs to which province.
      *
      * @var array<string, array<int, string>>
      */
-    'provinces' => [
-        'Punjab' => [
-            'Lahore', 'Faisalabad', 'Rawalpindi', 'Multan', 'Gujranwala',
-            'Sialkot', 'Bahawalpur', 'Sargodha', 'Sahiwal', 'Rahim Yar Khan',
-        ],
-        'Sindh' => ['Karachi', 'Hyderabad', 'Sukkur', 'Larkana', 'Nawabshah'],
-        'Khyber Pakhtunkhwa' => ['Peshawar', 'Mardan', 'Abbottabad', 'Mingora', 'Kohat'],
-        'Balochistan' => ['Quetta', 'Gwadar', 'Turbat', 'Khuzdar'],
-        'Islamabad Capital Territory' => ['Islamabad'],
-        'Gilgit-Baltistan' => ['Gilgit', 'Skardu'],
-        'Azad Jammu and Kashmir' => ['Muzaffarabad', 'Mirpur'],
-    ],
+    'provinces' => Address::provinces(),
 ];

@@ -18,7 +18,6 @@ use App\Policies\ReviewPolicy;
 use App\Policies\UserPolicy;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Auth\Notifications\ResetPassword;
-use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\PermissionRegistrar;
 use Illuminate\Support\Facades\URL;
@@ -102,23 +101,14 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Point the signed email URLs at the SPA, not at the API host.
+     * Point the e-mailed password reset URL at the SPA, not at the API host.
+     *
+     * Email verification does not use a signed link any more: the customer
+     * enters the six digit code from their inbox on the verification screen
+     * (see VerificationCodeService).
      */
     protected function registerEmailLinks(): void
     {
-        VerifyEmail::createUrlUsing(function (User $user, string $verificationUrl): string {
-            $frontend = rtrim((string) config('app.frontend_url'), '/');
-
-            if ($frontend === '') {
-                return $verificationUrl;
-            }
-
-            return $frontend.'/verify-email?'.http_build_query([
-                'id' => $user->getKey(),
-                'hash' => sha1($user->getEmailForVerification()),
-            ]);
-        });
-
         ResetPassword::createUrlUsing(function (User $user, string $token): string {
             $frontend = rtrim((string) config('app.frontend_url'), '/');
 

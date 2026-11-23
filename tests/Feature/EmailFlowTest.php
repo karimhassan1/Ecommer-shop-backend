@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Mail\EmailVerificationMail;
+use App\Mail\EmailVerificationCodeMail;
 use App\Mail\PasswordResetMail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,7 +15,11 @@ class EmailFlowTest extends TestCase
     use MakesGraphQLRequests;
     use RefreshDatabase;
 
-    public function test_a_registered_user_can_verify_their_email(): void
+    /**
+     * Verification is done with the six digit code only; there is no signed
+     * link any more, because the code is what the SPA collects on screen.
+     */
+    public function test_the_signed_verification_link_is_gone(): void
     {
         $user = User::factory()->unverified()->create();
 
@@ -23,25 +27,12 @@ class EmailFlowTest extends TestCase
             mutation {
                 VerifyEmail(id: '.$user->id.', hash: "'.sha1($user->email).'") { message }
             }
-        ')->assertJsonPath('data.VerifyEmail.message', 'Email verified successfully. Thank you!');
-
-        $this->assertTrue($user->fresh()->hasVerifiedEmail());
-    }
-
-    public function test_email_verification_rejects_a_tampered_hash(): void
-    {
-        $user = User::factory()->unverified()->create();
-
-        $this->graphQL(/** @lang GraphQL */ '
-            mutation {
-                VerifyEmail(id: '.$user->id.', hash: "not-a-real-hash") { message }
-            }
-        ')->assertGraphQLErrorMessage('This verification link is not valid.');
+        ')->assertGraphQLErrorMessage('Cannot query field "VerifyEmail" on type "Mutation". Did you mean "VerifyEmailCode"?');
 
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }
 
-    public function test_an_unverified_user_can_request_a_new_verification_email(): void
+    public function test_an_unverified_user_can_request_a_new_verification_code(): void
     {
         Mail::fake();
 
@@ -51,9 +42,9 @@ class EmailFlowTest extends TestCase
             ->graphQL(/** @lang GraphQL */ '
                 mutation { ResendVerificationEmail { message } }
             ')
-            ->assertJsonPath('data.ResendVerificationEmail.message', fn (string $m): bool => str_contains($m, 'verification link'));
+            ->assertJsonPath('data.ResendVerificationEmail.message', fn (string $m): bool => str_contains($m, '6 digit code'));
 
-        Mail::assertSent(EmailVerificationMail::class);
+        Mail::assertSent(EmailVerificationCodeMail::class);
     }
 
     public function test_a_verified_user_cannot_request_another_verification_email(): void

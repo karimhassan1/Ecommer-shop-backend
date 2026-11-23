@@ -81,6 +81,9 @@ class MediaConfigTest extends TestCase
     {
         config([
             'media.disk' => 's3',
+            'media.url' => null,
+            'media.oci.url' => null,
+            'media.oci.namespace' => null,
             'filesystems.disks.s3.driver' => 's3',
             'filesystems.disks.s3.bucket' => 'rosera-media',
             'filesystems.disks.s3.region' => 'ap-south-1',
@@ -98,6 +101,9 @@ class MediaConfigTest extends TestCase
     {
         config([
             'media.disk' => 's3',
+            'media.url' => null,
+            'media.oci.url' => null,
+            'media.oci.namespace' => null,
             'filesystems.disks.s3.driver' => 's3',
             'filesystems.disks.s3.bucket' => 'rosera-media',
             'filesystems.disks.s3.endpoint' => 'https://ams3.digitaloceanspaces.com',
@@ -108,6 +114,59 @@ class MediaConfigTest extends TestCase
             'https://ams3.digitaloceanspaces.com/rosera-media/products/a.jpg',
             app(MediaService::class)->url('products/a.jpg')
         );
+    }
+
+    public function test_an_oracle_bucket_uses_its_native_public_url(): void
+    {
+        config([
+            'media.disk' => 's3',
+            'media.url' => null,
+            'media.oci.url' => null,
+            'media.oci.namespace' => 'ax3ljlthvmgn',
+            'media.oci.region' => 'us-sanjose-1',
+            'filesystems.disks.s3.driver' => 's3',
+            'filesystems.disks.s3.bucket' => 'rosera-media',
+            'filesystems.disks.s3.endpoint' => 'https://ax3ljlthvmgn.compat.objectstorage.us-sanjose-1.oraclecloud.com',
+            'filesystems.disks.s3.url' => null,
+        ]);
+
+        // The S3-compatible endpoint is for uploads only; browsers download
+        // from the native object storage URL.
+        $this->assertSame(
+            'https://objectstorage.us-sanjose-1.oraclecloud.com/n/ax3ljlthvmgn/b/rosera-media/o/products/a.jpg',
+            app(MediaService::class)->url('products/a.jpg')
+        );
+    }
+
+    public function test_an_explicit_oracle_public_url_wins(): void
+    {
+        config([
+            'media.disk' => 's3',
+            'media.url' => null,
+            'media.oci.namespace' => 'ax3ljlthvmgn',
+            'media.oci.url' => 'https://cdn.roserabloom.pk/media/',
+            'filesystems.disks.s3.driver' => 's3',
+            'filesystems.disks.s3.bucket' => 'rosera-media',
+            'filesystems.disks.s3.url' => null,
+        ]);
+
+        $this->assertSame(
+            'https://cdn.roserabloom.pk/media/products/a.jpg',
+            app(MediaService::class)->url('products/a.jpg')
+        );
+    }
+
+    public function test_oracle_uploads_skip_the_canned_acl(): void
+    {
+        // Oracle ignores / rejects `ACL: public-read`, so the object is written
+        // without any ACL header and the bucket policy decides visibility.
+        config(['media.oci.public_acl' => false]);
+
+        $this->assertFalse(app(MediaService::class)->usesPublicAcl());
+
+        config(['media.oci.public_acl' => true]);
+
+        $this->assertTrue(app(MediaService::class)->usesPublicAcl());
     }
 
     public function test_an_upload_is_written_to_the_configured_disk(): void

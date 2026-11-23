@@ -1,7 +1,10 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 namespace App\GraphQL\Mutations;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Services\ProductVariantService;
@@ -25,6 +28,7 @@ use Nodesol\LaraQL\Attributes\Mutation;
     inputs: [
         'id' => 'ID! @rules(apply:["required"])',
         'type' => 'String @rules(apply:["nullable","in:clothing,perfume"])',
+        'audience' => 'String @rules(apply:["nullable","in:men,women,unisex"])',
         'name' => 'String @rules(apply:["nullable","max:180"])',
         'description' => 'String @rules(apply:["nullable","max:5000","min:20"])',
         'fabric' => 'String @rules(apply:["nullable","max:500"])',
@@ -32,6 +36,8 @@ use Nodesol\LaraQL\Attributes\Mutation;
         'is_active' => 'Boolean',
         'is_featured' => 'Boolean',
         'category_ids' => '[ID!]',
+        // Optional: sending an empty list removes every brand from the product.
+        'brand_ids' => '[ID!]',
         'variants' => '[VariantInput!]',
     ],
     return_type: 'Product!',
@@ -71,6 +77,12 @@ class UpdateProduct
                 );
             }
 
+            if (array_key_exists('brand_ids', $args) && $args['brand_ids'] !== null) {
+                $product->brands()->sync(
+                    Brand::query()->whereKey($args['brand_ids'])->pluck('id')->all()
+                );
+            }
+
             return $product->fresh([
                 'variants.color',
                 'variants.size',
@@ -107,6 +119,14 @@ class UpdateProduct
                 $payload['fabric'] = null;
                 $payload['fit_details'] = null;
             }
+        }
+
+        if (array_key_exists('audience', $args) && $args['audience'] !== null) {
+            $audience = strtolower(trim((string) $args['audience']));
+
+            $payload['audience'] = in_array($audience, Product::AUDIENCES, true)
+                ? $audience
+                : Product::AUDIENCE_UNISEX;
         }
 
         if (array_key_exists('is_active', $args) && $args['is_active'] !== null) {

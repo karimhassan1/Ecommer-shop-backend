@@ -54,6 +54,14 @@ class Login
             throw new UserError('Invalid email or password.');
         }
 
+        // A suspended account is refused even with the right password. The
+        // message is deliberately explicit: support staff handle these calls.
+        if ($user->is_active === false) {
+            RateLimiter::hit($throttleKey, self::DECAY_SECONDS);
+
+            throw new UserError('This account has been suspended. Please contact the shop.');
+        }
+
         RateLimiter::clear($throttleKey);
 
         $user->forceFill(['last_login_at' => now()])->save();
