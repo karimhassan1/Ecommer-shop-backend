@@ -51,7 +51,7 @@ jobs:
         with:
           context: .
           push: true
-          platforms: linux/amd64
+          platforms: linux/arm64
           tags: us-sanjose-1.ocir.io/ax3ljlthvmgn/ecommerce-backend:latest
           provenance: false
           cache-from: type=gha
