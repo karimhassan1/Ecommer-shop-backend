@@ -1,0 +1,158 @@
+
+name: Build and Deploy Ecommerce Backend
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecommerce-backend-deployment
+  cancel-in-progress: false
+
+env:
+  OCI_REGION: us-sanjose-1
+  OCI_NAMESPACE: ax3ljlthvmgn
+  REGISTRY: us-sanjose-1.ocir.io
+  IMAGE: us-sanjose-1.ocir.io/ax3ljlthvmgn/ecommerce-backend:latest
+  K8S_NAMESPACE: ecommerceshop
+  DEPLOYMENT_NAME: ecommerce-backend
+  CONTAINER_NAME: ecommerce-backend
+
+jobs:
+  build-and-deploy:
+    name: Build, Push and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Get project source code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Authenticate with OCI Container Registry
+      - name: Login to OCIR
+        uses: docker/login-action@v3
+        with:
+          registry: us-sanjose-1.ocir.io
+          username: ${{ secrets.OCI_USERNAME }}
+          password: ${{ secrets.OCI_AUTH_TOKEN }}
+
+      # 3. Configure Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4. Build and push Docker image
+      - name: Build and Push Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: us-sanjose-1.ocir.io/ax3ljlthvmgn/ecommerce-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 5. Install Python for OCI CLI
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 6. Install OCI CLI
+      - name: Install OCI CLI
+        run: |
+          python -m venv "$RUNNER_TEMP/oci-venv"
+          "$RUNNER_TEMP/oci-venv/bin/pip" install oci-cli
+          echo "$RUNNER_TEMP/oci-venv/bin" >> "$GITHUB_PATH"
+
+      # 7. Configure OCI API authentication
+      - name: Configure OCI Credentials
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_CONFIG_FINGERPRINT }}
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_CONFIG_PRV_KEY }}
+        run: |
+          mkdir -p "$HOME/.oci"
+          chmod 700 "$HOME/.oci"
+
+          printf '%s\n' "$OCI_PRIVATE_KEY" > "$HOME/.oci/oci_api_key.pem"
+          chmod 600 "$HOME/.oci/oci_api_key.pem"
+
+          cat > "$HOME/.oci/config" <<EOF
+          [DEFAULT]
+          user=${OCI_USER_OCID}
+          fingerprint=${OCI_FINGERPRINT}
+          tenancy=${OCI_TENANCY_OCID}
+          region=${OCI_REGION}
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+
+          chmod 600 "$HOME/.oci/config"
+
+      # 8. Verify OCI authentication
+      - name: Verify OCI Authentication
+        run: |
+          oci os ns get
+
+      # 9. Generate OKE kubeconfig
+      - name: Generate OKE Kubeconfig
+        env:
+          OKE_CLUSTER_ID: ${{ secrets.OKE_CLUSTER_ID }}
+        run: |
+          mkdir -p "$HOME/.kube"
+
+          oci ce cluster create-kubeconfig \
+            --cluster-id "$OKE_CLUSTER_ID" \
+            --file "$HOME/.kube/config" \
+            --region "$OCI_REGION" \
+            --token-version 2.0.0 \
+            --kube-endpoint PUBLIC_ENDPOINT
+
+          chmod 600 "$HOME/.kube/config"
+
+      # 10. Install kubectl
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.36.4
+
+      # 11. Verify Kubernetes connection
+      - name: Check OKE Cluster
+        run: |
+          kubectl get nodes
+          kubectl get deployment "$DEPLOYMENT_NAME" \
+            -n "$K8S_NAMESPACE"
+
+      # 12. Restart deployment to pull latest image
+      - name: Deploy Latest Image
+        run: |
+          kubectl set image \
+            deployment/"$DEPLOYMENT_NAME" \
+            "$CONTAINER_NAME"="$IMAGE" \
+            -n "$K8S_NAMESPACE"
+
+          kubectl rollout restart \
+            deployment/"$DEPLOYMENT_NAME" \
+            -n "$K8S_NAMESPACE"
+
+      # 13. Wait until deployment succeeds
+      - name: Verify Deployment
+        run: |
+          kubectl rollout status \
+            deployment/"$DEPLOYMENT_NAME" \
+            -n "$K8S_NAMESPACE" \
+            --timeout=300s
+
+          kubectl get pods -n "$K8S_NAMESPACE"
+
+      # 14. Remove credentials from runner
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf "$HOME/.oci"
+          rm -rf "$HOME/.kube"
