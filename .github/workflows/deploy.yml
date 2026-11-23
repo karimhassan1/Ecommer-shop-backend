@@ -21,7 +21,7 @@ env:
   IMAGE: us-sanjose-1.ocir.io/ax3ljlthvmgn/ecommerce-backend:latest
   K8S_NAMESPACE: ecommerceshop
   DEPLOYMENT_NAME: ecommerce-backend
-  CONTAINER_NAME: ecommerce-backend
+  CONTAINER_NAME: laravel
 
 jobs:
   build-and-deploy:
