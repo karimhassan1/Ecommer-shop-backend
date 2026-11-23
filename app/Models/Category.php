@@ -47,6 +47,22 @@ class Category extends Model
         return $this->belongsToMany(Product::class, 'product_categories');
     }
 
+    /**
+     * How many products are filed under this category, as `product_count`.
+     *
+     * `AdminCategories` and `CategoryList` both `withCount('products')`, which
+     * yields `products_count`; this exposes it under the name the admin screen
+     * reads, defaulting to 0 when the count was not requested.
+     */
+    public function getProductCountAttribute(): int
+    {
+        if (array_key_exists('products_count', $this->attributes)) {
+            return (int) $this->attributes['products_count'];
+        }
+
+        return $this->relationLoaded('products') ? $this->products->count() : 0;
+    }
+
     protected static function booted(): void
     {
         static::saving(function (Category $category): void {

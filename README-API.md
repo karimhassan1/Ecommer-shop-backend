@@ -143,12 +143,57 @@ will charge.
 
 ---
 
-## Image storage (local now, S3 later)
+## Image storage (Oracle Cloud Object Storage, S3 compatible)
 
 Where product images live is configured **only through `.env`**. No code changes
-when you move to S3.
+are needed to move between the local disk and the bucket.
 
-### Local disk (default)
+### Oracle Cloud Object Storage (production)
+
+Uploads go to Oracle's **S3-compatible** endpoint, but browsers download from the
+**native** object storage URL — the two are different hosts, which is why both
+are configured:
+
+```dotenv
+MEDIA_DISK=s3
+MEDIA_URL=                      # empty = derive the native OCI URL
+MEDIA_FOLDER=products
+MEDIA_MAX_KB=5120
+MEDIA_PUBLIC_ACL=false          # Oracle ignores/rejects canned ACLs
+
+# S3-compatible endpoint (for uploads)
+AWS_ACCESS_KEY_ID=<customer secret key id>
+AWS_SECRET_ACCESS_KEY=<customer secret>
+AWS_DEFAULT_REGION=us-sanjose-1
+AWS_BUCKET=bucket-20261123-0216
+AWS_ENDPOINT=https://<namespace>.compat.objectstorage.<region>.oraclecloud.com
+AWS_USE_PATH_STYLE_ENDPOINT=true
+
+# Native public URL (for downloads)
+OCI_NAMESPACE=<object storage namespace>
+OCI_REGION=us-sanjose-1
+OCI_PUBLIC_URL=https://objectstorage.<region>.oraclecloud.com/n/<namespace>/b/<bucket>/o
+```
+
+An image stored as `products/x.jpg` then resolves to
+`https://objectstorage.us-sanjose-1.oraclecloud.com/n/<namespace>/b/<bucket>/o/products/x.jpg`.
+
+Because Oracle Cloud's S3 compatibility layer ignores (and on some tenancies
+rejects) the `x-amz-acl` header, uploads are written **without** an ACL and the
+object is made public by a **bucket policy**. The simplest policy is a
+pre-authenticated or public bucket read:
+
+```text
+Allow group <group> to read object in tenancy
+```
+
+plus, for anonymous downloads, a bucket policy with
+`Allow any-user to read object in tenancy where request.principal.type = 'anonymous'`.
+
+Set `MEDIA_PUBLIC_ACL=true` if you move to a plain AWS S3 / MinIO bucket that
+expects `ACL: public-read`.
+
+### Local disk (development)
 
 ```dotenv
 MEDIA_DISK=public
@@ -159,11 +204,12 @@ MEDIA_MAX_KB=5120
 
 Run `php artisan storage:link` once. URLs resolve to `APP_URL/storage/<path>`.
 
-### S3 / DigitalOcean Spaces / MinIO
+### Any other S3-compatible store (AWS, Spaces, MinIO)
 
 ```dotenv
 MEDIA_DISK=s3
 MEDIA_URL=                      # empty = derive from the bucket
+MEDIA_PUBLIC_ACL=true
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_DEFAULT_REGION=ap-south-1
@@ -171,18 +217,17 @@ AWS_BUCKET=rosera-media
 ```
 
 That produces `https://rosera-media.s3.ap-south-1.amazonaws.com/products/x.jpg`.
+A custom endpoint works too:
+
+```dotenv
+AWS_ENDPOINT=https://sgp1.digitaloceanspaces.com
+AWS_USE_PATH_STYLE_ENDPOINT=true
+```
 
 To serve through a CDN or custom domain, set the base URL explicitly:
 
 ```dotenv
 MEDIA_URL=https://cdn.roserabloom.pk
-```
-
-A custom endpoint (Spaces, MinIO, R2) works too:
-
-```dotenv
-AWS_ENDPOINT=https://sgp1.digitaloceanspaces.com
-AWS_USE_PATH_STYLE_ENDPOINT=true
 ```
 
 ### How it works
@@ -192,11 +237,12 @@ AWS_USE_PATH_STYLE_ENDPOINT=true
 | Concern | Source |
 | --- | --- |
 | which disk to write to | `config('media.disk')` → `MEDIA_DISK` |
-| the public base URL | `MEDIA_URL` → disk `url` → S3 bucket / `APP_URL/storage` |
+| the public base URL | `MEDIA_URL` → disk `url` → `OCI_PUBLIC_URL` → `OCI_NAMESPACE` + `OCI_REGION` → S3 endpoint → `APP_URL/storage` |
+| whether to send `ACL: public-read` | `MEDIA_PUBLIC_ACL` |
 | upload folder | `MEDIA_FOLDER` |
 | size and MIME limits | `MEDIA_MAX_KB`, `config('media.allowed_mimes')` |
 
-Everything goes through it: the upload endpoint, the `ProductImage.url`
+Everything goes through it: the upload endpoint, the `VariantImage.url`
 accessor, the delete hook, and the GraphQL settings payload. Because only the
 **path** is stored in the database, switching disks re-points every existing
 image instantly — nothing is migrated.
@@ -210,7 +256,35 @@ image instantly — nothing is migrated.
 ```
 
 The SPA calls `configureMedia()` with that response at boot, so `imageUrl()`
-builds identical URLs. Switching the backend to S3 needs **no front-end rebuild**.
+builds identical URLs. Switching the backend to Oracle Cloud or a CDN needs
+**no front-end rebuild**.
+
+---
+
+## Transactional email is queued
+
+Every transactional email (welcome, verification code, password reset, order
+confirmation, seller notice, contact form) is pushed onto the queue instead of
+being sent inside the request:
+
+* the API responds immediately — SMTP latency or an unreachable mail host can no
+  longer slow down sign-up, checkout or the contact form
+* delivery happens in `App\Jobs\SendTransactionalEmail`, with **3 attempts** and
+  a 10 second backoff before the job is moved to `failed_jobs`
+* `Mail::` is never called from a resolver; `App\Services\MailService` and
+  `VerificationCodeService` only dispatch the job
+
+Run a worker in production:
+
+```bash
+QUEUE_CONNECTION=database          # already the default
+
+php artisan queue:work --tries=3 --backoff=10
+# or, to survive deploys, use a supervisor / systemd unit
+```
+
+Without a running worker nothing is delivered, so the queue connection
+(`QUEUE_CONNECTION`) is the only email-specific setting you must configure.
 
 ---
 
@@ -359,6 +433,50 @@ mutation { DeleteCategory(id: 7) { message deleted_id } }
 `SaveCategory` derives the slug from the name and refuses a name that would
 collide with an existing slug. `DeleteCategory` refuses a category that still
 holds products.
+
+
+### Brands
+
+A brand is an **optional** label: a product may carry one, several, or none at
+all. Deleting a brand never deletes products — they simply become brand-less.
+
+```graphql
+# Admin listing with product counts
+{ AdminBrands(search: "atelier") { id name slug product_count } }
+
+# Create (no id) or update (with id)
+mutation { SaveBrand(name: "Atelier Noir") { id name slug } }
+mutation { SaveBrand(id: 3, name: "Atelier Noir Paris") { id name slug } }
+
+mutation { DeleteBrand(id: 3) { message deleted_id } }
+```
+
+`SaveBrand` derives a unique slug from the name and rejects a duplicate name
+(case-insensitive). `product_count` reports how many products carry the label,
+defaulting to `0` rather than `null`.
+
+The brand is attached through the product mutations, using the same optional
+`brand_ids` list as the category ids:
+
+```graphql
+mutation {
+  CreateProduct(
+    type: "clothing"
+    name: "Linen Kurta"
+    description: "A lightweight linen kurta for warm afternoons."
+    brand_ids: [3, 5]        # omit, or send [], for a product with no brand
+    category_ids: [1]
+    variants: [ /* … */ ]
+  ) { id brands { name } }
+}
+
+# Later: replace the brands (an empty list clears them)
+mutation { UpdateProduct(id: 12, brand_ids: []) { id brands { name } } }
+```
+
+The storefront's brand filter is `BrowseProducts(brand_id: 3)` (or
+`brand_slug: "atelier-noir"`), and `ShopFilters` returns the brands that actually
+have products, with their counts.
 
 
 ### Creating and updating a product

@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 namespace App\GraphQL\Queries;
 
@@ -23,6 +25,7 @@ use Nodesol\LaraQL\Attributes\Query;
     filters: [
         'search: String',
         'type: String',
+        'audience: String',
         'category_id: ID',
         'category_slug: String',
         'brand_id: ID',
@@ -82,6 +85,12 @@ class BrowseProducts
             ->when(
                 ! empty($args['type']),
                 fn ($builder) => $builder->where('type', $args['type'])
+            )
+            // "Men's / Women's / Unisex" tabs: a unisex product is shown in its
+            // own tab only, never duplicated into both gendered ones.
+            ->when(
+                ! empty($args['audience']),
+                fn ($builder) => $builder->where('audience', $args['audience'])
             )
             ->when(
                 ! empty($args['category_id']),
@@ -210,7 +219,7 @@ class BrowseProducts
                     ->whereColumn('discount_price', '<', 'price')
                     ->where('discount_price', $operator, $amount);
             })->orWhere(function ($regular) use ($operator, $amount): void {
-                $regular->where(function ($when) use ($operator, $amount): void {
+                $regular->where(function ($when): void {
                     // No usable discount: compare the regular price.
                     $when->whereNull('discount_price')
                         ->orWhereColumn('discount_price', '>=', 'price');

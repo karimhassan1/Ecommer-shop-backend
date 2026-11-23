@@ -19,7 +19,7 @@ WORKDIR /app
 
 COPY --from=base /app /app
 
-RUN printf '#!/bin/sh\nset -e\nphp artisan optimize\nexec php artisan octane:start --server=swoole --host=0.0.0.0 --port=8000\n' \
+RUN printf '#!/bin/sh\nset -e\nphp artisan optimize\nexec php artisan queue:work \nexec php artisan octane:start --server=swoole --host=0.0.0.0 --port=8000\n' \
     > /usr/bin/entrypoint \
     && chmod +x /usr/bin/entrypoint
 

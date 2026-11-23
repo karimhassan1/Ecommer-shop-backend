@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
+use App\Jobs\SendTransactionalEmail;
 use App\Mail\EmailVerificationCodeMail;
 use App\Models\User;
 use GraphQL\Error\UserError;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 /**
@@ -156,10 +156,17 @@ class VerificationCodeService
         return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     }
 
+    /**
+     * Queue the code instead of sending it on the request.
+     *
+     * The customer's "send me a code" click returns straight away; a queue
+     * worker delivers the mail. Returns false only when the job could not be
+     * queued at all.
+     */
     protected function sendCodeMail(User $user, string $code): bool
     {
         try {
-            Mail::to($user->email)->send(new EmailVerificationCodeMail(
+            SendTransactionalEmail::dispatch($user->email, new EmailVerificationCodeMail(
                 customerName: $user->name,
                 code: $code,
                 expiresInMinutes: self::CODE_TTL_MINUTES,
@@ -167,7 +174,7 @@ class VerificationCodeService
 
             return true;
         } catch (Throwable $exception) {
-            Log::warning('Verification code email could not be sent.', [
+            Log::warning('Verification code email could not be queued.', [
                 'to' => $user->email,
                 'error' => $exception->getMessage(),
             ]);

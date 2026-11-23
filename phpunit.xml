@@ -30,5 +30,18 @@
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="FRONTEND_URL" value="http://localhost:9000"/>
+        <!--
+            Tests must never touch a real object store: the media disk is the
+            local public one, and the Oracle Cloud settings are blanked so a
+            developer's .env cannot leak into the suite. Individual tests opt
+            into another disk by setting the config themselves.
+        -->
+        <env name="FILESYSTEM_DISK" value="local"/>
+        <env name="MEDIA_DISK" value="public"/>
+        <env name="MEDIA_URL" value=""/>
+        <env name="MEDIA_PUBLIC_ACL" value="true"/>
+        <env name="OCI_NAMESPACE" value=""/>
+        <env name="OCI_REGION" value=""/>
+        <env name="OCI_PUBLIC_URL" value=""/>
     </php>
 </phpunit>

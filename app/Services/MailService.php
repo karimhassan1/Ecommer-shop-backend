@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendTransactionalEmail;
 use App\Mail\ContactMessageMail;
 use App\Mail\OrderConfirmationMail;
 use App\Mail\OrderStatusChangedMail;
@@ -14,15 +15,16 @@ use App\Models\Order;
 use App\Models\User;
 use Illuminate\Contracts\Auth\PasswordBroker;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Throwable;
 
 /**
  * Central place where every transactional email is sent from.
  *
- * Mail failures never break an API call: they are swallowed and logged so a
- * broken SMTP configuration cannot take the storefront down.
+ * Mail is always queued (see App\Jobs\SendTransactionalEmail) so an API call
+ * never waits on SMTP, and a mail failure can never break a checkout or a
+ * sign-up: the customer's request has already been answered by the time the
+ * worker tries to deliver.
  */
 class MailService
 {
@@ -170,14 +172,25 @@ class MailService
         return Password::broker();
     }
 
+    /**
+     * Hand a mailable to the queue.
+     *
+     * Nothing here talks to an SMTP server: the job is pushed and the API
+     * returns immediately, so a slow or unreachable mail host can no longer
+     * stall registration, checkout or a contact form submission. The mail is
+     * delivered by a queue worker (`php artisan queue:work`).
+     *
+     * Returns false only when the message could not even be queued (for
+     * example no queue driver is configured).
+     */
     protected function send(string $to, object $mailable): bool
     {
         try {
-            Mail::to($to)->send($mailable);
+            SendTransactionalEmail::dispatch($to, $mailable);
 
             return true;
         } catch (Throwable $exception) {
-            Log::warning('Transactional email could not be sent.', [
+            Log::warning('Transactional email could not be queued.', [
                 'to' => $to,
                 'mailable' => $mailable::class,
                 'error' => $exception->getMessage(),

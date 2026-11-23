@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 namespace App\GraphQL\Queries;
 
@@ -29,6 +31,7 @@ use Nodesol\LaraQL\Attributes\Type;
         'payment_methods' => '[PaymentMethod!]!',
         'provinces' => '[Province!]!',
         'product_types' => '[ProductType!]!',
+        'audiences' => '[ProductType!]!',
         'clothing_sizes' => '[String!]!',
         'perfume_volumes' => '[String!]!',
         'support_email' => 'String!',
@@ -71,6 +74,13 @@ class ShopSettings
             'payment_methods' => $this->settings->paymentMethods(),
             'provinces' => $this->provinces(),
             'product_types' => collect(config('shop.product_types', []))
+                ->map(fn (string $label, string $value): array => [
+                    'value' => $value,
+                    'label' => $label,
+                ])
+                ->values()
+                ->all(),
+            'audiences' => collect(config('shop.audiences', []))
                 ->map(fn (string $label, string $value): array => [
                     'value' => $value,
                     'label' => $label,

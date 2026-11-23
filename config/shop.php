@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Address;
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -57,6 +59,23 @@ return [
         'perfume' => 'Perfume',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Merchandising audiences
+    |--------------------------------------------------------------------------
+    |
+    | The storefront offers "Men's", "Women's" and "Unisex" tabs inside each
+    | product type. A product belongs to exactly one of them
+    | (`products.audience`), so nothing is duplicated into two lists.
+    |
+    */
+
+    'audiences' => [
+        'men' => "Men's",
+        'women' => "Women's",
+        'unisex' => 'Unisex',
+    ],
+
     /** Default size list offered when adding clothing. Admin can override. */
     'clothing_sizes' => ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
 
@@ -91,6 +110,5 @@ return [
      *
      * @var array<string, array<int, string>>
      */
-    'provinces' => \App\Support\Address::provinces(),
+    'provinces' => Address::provinces(),
 ];
-

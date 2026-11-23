@@ -1,7 +1,10 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 namespace App\GraphQL\Mutations;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Services\ProductVariantService;
@@ -25,6 +28,7 @@ use Nodesol\LaraQL\Attributes\Mutation;
     query: '@field(resolver:"CreateProduct") @guard @permission(require: ["product.create"])',
     inputs: [
         'type' => 'String! @rules(apply:["required","in:clothing,perfume"])',
+        'audience' => 'String @rules(apply:["nullable","in:men,women,unisex"])',
         'name' => 'String! @rules(apply:["required","max:180"])',
         'description' => 'String @rules(apply:["nullable","max:5000","min:20"])',
         'fabric' => 'String @rules(apply:["nullable","max:500"])',
@@ -32,6 +36,8 @@ use Nodesol\LaraQL\Attributes\Mutation;
         'is_active' => 'Boolean! = true',
         'is_featured' => 'Boolean! = false',
         'category_ids' => '[ID!]',
+        // Optional: a product may carry one brand, several, or none at all.
+        'brand_ids' => '[ID!]',
         'variants' => '[VariantInput!]!',
     ],
     return_type: 'Product!',
@@ -56,6 +62,7 @@ class CreateProduct
             /** @var Product $product */
             $product = Product::create([
                 'type' => $type,
+                'audience' => $this->audience($args['audience'] ?? null),
                 'seller_id' => $sellerId,
                 'name' => trim((string) $args['name']),
                 'description' => $this->text($args['description'] ?? null),
@@ -68,6 +75,7 @@ class CreateProduct
 
             $this->variants->sync($product, $args['variants'] ?? []);
             $this->syncCategories($product, $args['category_ids'] ?? []);
+            $this->syncBrands($product, $args['brand_ids'] ?? []);
 
             return $this->reload($product);
         });
@@ -82,6 +90,21 @@ class CreateProduct
     }
 
     /**
+     * The merchandising audience, defaulting to unisex.
+     *
+     * An omitted value keeps every older client (which never sent the field)
+     * working: the product simply lands in the "Unisex" tab.
+     */
+    protected function audience(mixed $value): string
+    {
+        $audience = strtolower(trim((string) ($value ?? '')));
+
+        return in_array($audience, Product::AUDIENCES, true)
+            ? $audience
+            : Product::AUDIENCE_UNISEX;
+    }
+
+    /**
      * Replace the product's categories. An empty list clears them.
      *
      * @param  array<int, string|int>  $categoryIds
@@ -93,6 +116,21 @@ class CreateProduct
             : Category::query()->whereKey($categoryIds)->pluck('id')->all();
 
         $product->categories()->sync($ids);
+    }
+
+    /**
+     * Replace the product's brands. An empty list clears them, which is a
+     * valid state: not every piece has a label.
+     *
+     * @param  array<int, string|int>  $brandIds
+     */
+    protected function syncBrands(Product $product, array $brandIds): void
+    {
+        $ids = $brandIds === []
+            ? []
+            : Brand::query()->whereKey($brandIds)->pluck('id')->all();
+
+        $product->brands()->sync($ids);
     }
 
     /** Reload with everything the admin table and the product page read. */
