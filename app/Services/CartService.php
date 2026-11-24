@@ -169,7 +169,17 @@ class CartService
         }
 
         return DB::transaction(function () use ($user, $cart, $data, $paymentMethod): Order {
-            $lines = $cart->cartItem()->with(['product.variants', 'variant'])->get();
+            // Everything the snapshot needs is loaded up front: the product
+            // (name, type) and the variant with its labels, so writing an order
+            // line never fires a query per row.
+            $lines = $cart->cartItem()
+                ->with([
+                    'product',
+                    'variant.color',
+                    'variant.size',
+                    'variant.volume',
+                ])
+                ->get();
 
             $subtotal = (float) $lines->sum(
                 fn (CartItem $item): float => $item->quantity * $this->unitPrice($item)
@@ -208,16 +218,29 @@ class CartService
             foreach ($lines as $line) {
                 $variant = $line->variant;
 
+                // Snapshot the whole line, not just the price: the product can
+                // be renamed, re-priced or deleted later, and this row has to
+                // keep describing the sale as it actually happened. `price` is
+                // what was paid per unit; `list_price` keeps the regular price
+                // so the discount can be shown on the receipt afterwards.
+                $unitPrice = $this->unitPrice($line);
+                $listPrice = (float) ($variant?->price ?? $unitPrice);
+
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $line->product_id,
                     'product_variant_id' => $variant?->id,
+                    'product_name' => $line->product?->name,
+                    'product_type' => $line->product?->type,
+                    'sku' => $variant?->sku,
                     // Snapshot labels so the receipt stays readable if the
                     // variant is later renamed or deactivated.
                     'color_name' => $variant?->color?->name,
                     'size_label' => $variant?->size?->name ?? $variant?->volume?->label,
                     'quantity' => $line->quantity,
-                    'price' => $this->unitPrice($line),
+                    'price' => $unitPrice,
+                    'list_price' => $listPrice > 0 ? $listPrice : $unitPrice,
+                    'discount_amount' => max(0.0, ($listPrice > 0 ? $listPrice : $unitPrice) - $unitPrice),
                 ]);
 
                 $this->decrementStock($line);

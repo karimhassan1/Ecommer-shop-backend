@@ -27,8 +27,21 @@ class AdminReviews
     /** @param array{} $args */
     public function __invoke($root, array $args)
     {
+        $user = $this->requireAdmin();
+
         return Review::query()
             ->with(['user', 'product'])
+            // A seller moderates the reviews of their own products only. The
+            // panel grants them `review.view` so they can do exactly that, and
+            // this scope is what keeps every other seller's (and the shop's)
+            // reviews out of their list — the administrator sees everything.
+            ->when(
+                $user->isSeller(),
+                fn ($query) => $query->whereHas(
+                    'product',
+                    fn ($product) => $product->where('seller_id', $user->id)
+                )
+            )
             ->when(
                 isset($args['product_id']),
                 fn ($query, $id) => $query->where('product_id', (int) $id)

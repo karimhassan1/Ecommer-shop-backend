@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Mail\EmailVerificationCodeMail;
+use App\Mail\PasswordResetCodeMail;
 use App\Mail\PasswordResetMail;
 use App\Models\User;
+use App\Services\PasswordResetCodeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Nuwave\Lighthouse\Testing\MakesGraphQLRequests;
@@ -62,7 +64,7 @@ class EmailFlowTest extends TestCase
         Mail::assertNothingSent();
     }
 
-    public function test_a_user_can_request_a_password_reset_link(): void
+    public function test_a_user_can_request_a_password_reset_code(): void
     {
         Mail::fake();
 
@@ -70,11 +72,19 @@ class EmailFlowTest extends TestCase
 
         $this->graphQL(/** @lang GraphQL */ '
             mutation {
-                ForgotPassword(email: "'.$user->email.'") { message }
+                ForgotPassword(email: "'.$user->email.'") { message expires_in_minutes }
             }
-        ')->assertJsonPath('data.ForgotPassword.message', fn (string $m): bool => str_contains($m, 'password reset link'));
+        ')
+            ->assertJsonPath('data.ForgotPassword.message', fn (string $m): bool => str_contains($m, '6 digit reset code'))
+            ->assertJsonPath('data.ForgotPassword.expires_in_minutes', PasswordResetCodeService::CODE_TTL_MINUTES);
 
-        Mail::assertSent(PasswordResetMail::class);
+        // No link any more: the mail carries a six digit code and nothing else.
+        Mail::assertSent(PasswordResetCodeMail::class, function (PasswordResetCodeMail $mail) use ($user): bool {
+            return $mail->hasTo($user->email) && preg_match('/^\d{6}$/', $mail->code) === 1;
+        });
+        Mail::assertNotSent(PasswordResetMail::class);
+
+        $this->assertNotNull($user->fresh()->password_reset_code_expires_at);
     }
 
     public function test_an_unknown_email_does_not_leak_registration_state(): void
@@ -85,21 +95,36 @@ class EmailFlowTest extends TestCase
             mutation {
                 ForgotPassword(email: "nobody@example.com") { message }
             }
-        ')->assertJsonPath('data.ForgotPassword.message', fn (string $m): bool => str_contains($m, 'password reset link'));
+        ')->assertJsonPath('data.ForgotPassword.message', fn (string $m): bool => str_contains($m, '6 digit reset code'));
 
         Mail::assertNothingSent();
     }
 
-    public function test_a_password_can_be_reset_with_a_valid_token(): void
+    public function test_a_password_can_be_reset_with_the_emailed_code(): void
     {
+        Mail::fake();
+
         $user = User::factory()->create();
-        $token = \Illuminate\Support\Facades\Password::broker()->createToken($user);
+
+        $this->graphQL(/** @lang GraphQL */ '
+            mutation {
+                ForgotPassword(email: "'.$user->email.'") { message }
+            }
+        ');
+
+        $code = '';
+
+        Mail::assertSent(PasswordResetCodeMail::class, function (PasswordResetCodeMail $mail) use (&$code): bool {
+            $code = $mail->code;
+
+            return true;
+        });
 
         $this->graphQL(/** @lang GraphQL */ '
             mutation {
                 ConfirmForgotPassword(
                     email: "'.$user->email.'"
-                    token: "'.$token.'"
+                    code: "'.$code.'"
                     password: "brand-new-password"
                     password_confirmation: "brand-new-password"
                 ) { message }
@@ -107,9 +132,31 @@ class EmailFlowTest extends TestCase
         ')->assertJsonPath('data.ConfirmForgotPassword.message', 'Password reset successfully. You can now sign in.');
 
         $this->assertTrue(\Hash::check('brand-new-password', $user->fresh()->password));
+
+        // The code is burned and its counters cleared once it has been used.
+        $this->assertNull($user->fresh()->password_reset_code);
     }
 
-    public function test_a_password_reset_rejects_an_invalid_token(): void
+    public function test_a_freshly_issued_code_does_not_need_a_second_request(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+
+        // Requesting twice in a row is throttled, so the second answer never
+        // reveals whether the address exists — it just tells the caller to wait.
+        $this->graphQL(/** @lang GraphQL */ '
+            mutation { ForgotPassword(email: "'.$user->email.'") { message } }
+        ')->assertJsonMissingPath('errors');
+
+        $this->graphQL(/** @lang GraphQL */ '
+            mutation { ForgotPassword(email: "'.$user->email.'") { message } }
+        ')->assertJsonPath('errors.0.message', function (string $message): bool {
+            return str_contains($message, 'Please wait');
+        });
+    }
+
+    public function test_a_password_reset_rejects_an_invalid_code(): void
     {
         $user = User::factory()->create();
 
@@ -117,11 +164,38 @@ class EmailFlowTest extends TestCase
             mutation {
                 ConfirmForgotPassword(
                     email: "'.$user->email.'"
-                    token: "invalid-token"
+                    code: "000000"
                     password: "brand-new-password"
                     password_confirmation: "brand-new-password"
                 ) { message }
             }
-        ')->assertGraphQLErrorMessage('This password reset link is invalid or has expired.');
+        ')->assertGraphQLErrorMessage('That reset code is not valid. Request a new one.');
+    }
+
+    public function test_a_wrong_code_is_rejected_and_counted(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+
+        $this->graphQL(/** @lang GraphQL */ '
+            mutation { ForgotPassword(email: "'.$user->email.'") { message } }
+        ');
+
+        $this->graphQL(/** @lang GraphQL */ '
+            mutation {
+                ConfirmForgotPassword(
+                    email: "'.$user->email.'"
+                    code: "999999"
+                    password: "brand-new-password"
+                    password_confirmation: "brand-new-password"
+                ) { message }
+            }
+        ')->assertJsonPath('errors.0.message', function (string $message): bool {
+            return str_contains($message, 'not correct');
+        });
+
+        $this->assertSame(1, (int) $user->fresh()->password_reset_attempts);
+        $this->assertFalse(\Hash::check('brand-new-password', $user->fresh()->password));
     }
 }

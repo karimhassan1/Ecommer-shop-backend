@@ -6,6 +6,7 @@ use App\Jobs\SendTransactionalEmail;
 use App\Mail\ContactMessageMail;
 use App\Mail\OrderConfirmationMail;
 use App\Mail\OrderStatusChangedMail;
+use App\Mail\PasswordResetCodeMail;
 use App\Mail\PasswordResetMail;
 use App\Mail\SellerOrderPlacedMail;
 use App\Mail\SellerOrderStatusMail;
@@ -38,6 +39,10 @@ class MailService
 
     /**
      * Send the password reset link, returns the broker status string.
+     *
+     * @deprecated The shop resets passwords with a six digit code
+     *             (see PasswordResetCodeService). Kept because the Laravel
+     *             broker is still wired in `AppServiceProvider`.
      */
     public function sendPasswordResetLink(string $email): string
     {
@@ -57,6 +62,21 @@ class MailService
         ));
 
         return Password::RESET_LINK_SENT;
+    }
+
+    /**
+     * Send the six digit password reset code.
+     *
+     * The code is generated and stored by PasswordResetCodeService; this only
+     * delivers it, so the mail never has to know how the code is kept.
+     */
+    public function sendPasswordResetCode(User $user, string $code, int $expiresInMinutes = 15): void
+    {
+        $this->send($user->email, new PasswordResetCodeMail(
+            customerName: $user->name,
+            code: $code,
+            expiresInMinutes: $expiresInMinutes,
+        ));
     }
 
     public function sendOrderConfirmation(Order $order): void

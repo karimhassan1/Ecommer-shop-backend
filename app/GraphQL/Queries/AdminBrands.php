@@ -30,10 +30,20 @@ class AdminBrands
     {
         $search = trim((string) ($args['search'] ?? ''));
 
-        $this->requireAdmin();
+        $user = $this->requireAdmin();
 
         return Brand::query()
             ->withCount('products')
+            // A seller only trades their own catalogue, so the brand screen
+            // counts *their* products: a label nobody sells under is not theirs
+            // to manage. Staff and administrators see the whole shop.
+            ->when(
+                $user->isSeller(),
+                fn ($query) => $query->whereHas(
+                    'products',
+                    fn ($product) => $product->where('seller_id', $user->id)
+                )
+            )
             ->when($search !== '', function ($query) use ($search): void {
                 $term = '%'.strtolower($search).'%';
 

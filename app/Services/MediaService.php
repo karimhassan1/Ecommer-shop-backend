@@ -184,13 +184,74 @@ class MediaService
     /** Delete a stored file, ignoring absolute URLs and missing files. */
     public function forget(?string $path): void
     {
-        if (! $path || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+        $key = $this->objectKey($path);
+
+        if ($key === null) {
             return;
         }
 
-        if ($this->disk()->exists($path)) {
-            $this->disk()->delete($path);
+        if ($this->disk()->exists($key)) {
+            $this->disk()->delete($key);
         }
+    }
+
+    /**
+     * Delete several stored files at once.
+     *
+     * Used when a record swaps one picture for another (a page hero, an avatar)
+     * and when the previous value is about to be overwritten: the old object is
+     * removed from the bucket, so Oracle / S3 does not accumulate orphans.
+     *
+     * @param  array<int, string|null>  $paths
+     */
+    public function forgetMany(array $paths): void
+    {
+        foreach ($paths as $path) {
+            $this->forget($path);
+        }
+    }
+
+    /**
+     * Is this value a file on our own disk (and therefore ours to delete)?
+     *
+     * Absolute URLs (external images, legacy rows) and blank values are never
+     * touched: deleting them would either fail or remove somebody else's file.
+     */
+    public function isStoredPath(?string $path): bool
+    {
+        return $this->objectKey($path) !== null;
+    }
+
+    /**
+     * Turn whatever was stored into the object key to delete.
+     *
+     * Accepts the raw path ("products/a.jpg") and the resolved URL
+     * ("https://.../n/ns/b/bucket/o/products/a.jpg") so a caller that only has
+     * the value it rendered can still clean up the file.
+     */
+    public function objectKey(?string $path): ?string
+    {
+        if ($path === null || trim($path) === '') {
+            return null;
+        }
+
+        $path = trim($path);
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            $base = trim($this->baseUrl());
+
+            if ($base === '' || ! str_starts_with($path, $base)) {
+                return null;
+            }
+
+            $path = ltrim(substr($path, strlen($base)), '/');
+
+            // Oracle's native object URL appends the key after `/o/`, so the
+            // substring above is exactly the key — nothing else to strip.
+            return $path === '' ? null : rawurldecode($path);
+        }
+
+        return ltrim($path, '/');
     }
 
     /**

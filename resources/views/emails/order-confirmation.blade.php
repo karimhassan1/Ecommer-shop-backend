@@ -19,13 +19,26 @@
         @foreach ($lines as $line)
             <tr>
                 <td style="padding:12px 16px;font-size:14px;color:#2f2f36;border-top:1px solid #f1eef5;">
-                    {{ $line->product?->name ?? 'Product #'.$line->product_id }}
+                    {{-- The snapshot taken at checkout, so a later rename cannot rewrite this receipt. --}}
+                    {{ $line->display_name }}
+                    @if ($line->variant_label)
+                        <div style="font-size:12px;color:#6b7280;">{{ $line->variant_label }}</div>
+                    @endif
+                    @if ($line->sku)
+                        <div style="font-size:11px;color:#9aa0ac;">SKU {{ $line->sku }}</div>
+                    @endif
+                    @if ((float) $line->discount_value > 0)
+                        <div style="font-size:12px;color:#cd69da;">
+                            {{ number_format((float) $line->list_price_value, 2) }} each,
+                            you saved {{ number_format((float) $line->savings, 2) }}
+                        </div>
+                    @endif
                 </td>
                 <td align="center" style="padding:12px 16px;font-size:14px;color:#2f2f36;border-top:1px solid #f1eef5;">
                     {{ $line->quantity }}
                 </td>
                 <td align="right" style="padding:12px 16px;font-size:14px;color:#2f2f36;border-top:1px solid #f1eef5;">
-                    ${{ number_format($line->line_total, 2) }}
+                    {{ number_format((float) $line->line_total, 2) }}
                 </td>
             </tr>
         @endforeach
@@ -35,7 +48,7 @@
                 Total
             </td>
             <td align="right" style="padding:14px 16px;font-size:16px;font-weight:700;color:#cd69da;border-top:1px solid #ece9f1;">
-                ${{ number_format((float) $order->total_amount, 2) }}
+                {{ number_format((float) $order->total_amount, 2) }}
             </td>
         </tr>
     </table>

@@ -14,7 +14,10 @@ use Nodesol\LaraQL\Attributes\Type;
  * Numbers displayed on the admin dashboard.
  */
 #[Type(
-    columns_override: [
+    // Explicit: `columns_override` merges with the reflected *properties*, and
+    // this resolver class has none — only a method — so the dashboard numbers
+    // have to be declared outright.
+    columns: [
         'products' => 'Int!',
         'active_products' => 'Int!',
         'out_of_stock_products' => 'Int!',

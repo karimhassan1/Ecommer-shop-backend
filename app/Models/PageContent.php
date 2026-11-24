@@ -139,4 +139,36 @@ class PageContent extends Model
     {
         return app(MediaService::class)->url($this->getRawOriginal('hero_image'));
     }
+
+    /**
+     * Keep the bucket clean when a page picture is replaced or removed.
+     *
+     * The row stores one picture, so any other value means the previous file is
+     * now orphaned: it is deleted from whatever disk is configured (the Oracle
+     * Cloud bucket in production, the local public disk in development).
+     *
+     * The upload flow re-sends the *same* path when nothing changed, so a plain
+     * "save the title" click never deletes the picture still in use.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (PageContent $page): void {
+            if (! $page->isDirty('hero_image')) {
+                return;
+            }
+
+            $previous = $page->getRawOriginal('hero_image');
+            $next = $page->getAttributes()['hero_image'] ?? null;
+
+            if ($previous !== null && $previous !== '' && $previous !== $next) {
+                app(MediaService::class)->forget($previous);
+            }
+        });
+
+        // Removing the row (or the last picture) must not leave the object
+        // behind either.
+        static::deleting(function (PageContent $page): void {
+            app(MediaService::class)->forget($page->getRawOriginal('hero_image'));
+        });
+    }
 }

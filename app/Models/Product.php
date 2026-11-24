@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\VariantImage;
 use GraphQL\Error\UserError;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -215,6 +216,19 @@ class Product extends Model
             if ($user?->isSeller() && ! $product->isOwnedBy($user)) {
                 throw new UserError('You can only delete products you sell.');
             }
+
+            // The variant rows cascade with the product, and a cascading delete
+            // never fires `VariantImage::deleting`, so every photo of every
+            // variant has to be forgotten explicitly — otherwise the whole
+            // gallery stays behind in the Oracle Cloud bucket.
+            app(\App\Services\MediaService::class)->forgetMany(
+                $product->variants()
+                    ->with('images')
+                    ->get()
+                    ->flatMap(fn (ProductVariant $variant) => $variant->images
+                        ->map(fn (VariantImage $image): ?string => $image->getRawOriginal('url')))
+                    ->all()
+            );
         });
     }
 

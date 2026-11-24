@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\GraphQL\Queries;
 
 use App\Models\Review;
+use App\Services\GeoService;
 use App\Services\MediaService;
 use App\Services\SettingService;
 use App\Support\Address;
@@ -51,6 +52,7 @@ class ShopSettings
     public function __construct(
         private readonly SettingService $settings,
         private readonly MediaService $media,
+        private readonly GeoService $geo,
     ) {}
 
     /** @param array{} $args */
@@ -105,13 +107,24 @@ class ShopSettings
     /**
      * Provinces with their cities, shaped for the checkout selects.
      *
-     * Served from App\Support\Address so the browser is offered exactly the
-     * list PlaceOrder validates against.
+     * Served from GeoService (third party country/state/city data merged over
+     * the shipped list) and registered on App\Support\Address, so the browser
+     * is offered exactly the list PlaceOrder validates against.
      *
      * @return array<int, array{name: string, cities: array<int, string>}>
      */
     protected function provinces(): array
     {
-        return Address::provinceOptions();
+        $options = $this->geo->provinceOptions();
+
+        // Register now so the rest of this request (the order the customer is
+        // about to place) validates against the same catalogue the page shows.
+        Address::useCatalogue(
+            collect($options)->mapWithKeys(
+                fn (array $province): array => [$province['name'] => $province['cities']]
+            )->all()
+        );
+
+        return $options;
     }
 }

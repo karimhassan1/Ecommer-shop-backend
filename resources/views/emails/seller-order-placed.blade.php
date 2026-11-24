@@ -20,16 +20,20 @@
         @foreach ($lines as $line)
             <tr>
                 <td style="padding:12px 16px;font-size:14px;color:#2f2f36;border-top:1px solid #f1eef5;">
-                    {{ $line->product?->name ?? 'Product #'.$line->product_id }}
+                    {{-- Snapshot of the sale: renaming the product later must not change this packing list. --}}
+                    {{ $line->display_name }}
                     @if ($line->variant_label)
                         <div style="font-size:12px;color:#6b7280;">{{ $line->variant_label }}</div>
+                    @endif
+                    @if ($line->sku)
+                        <div style="font-size:11px;color:#9aa0ac;">SKU {{ $line->sku }}</div>
                     @endif
                 </td>
                 <td align="center" style="padding:12px 16px;font-size:14px;color:#2f2f36;border-top:1px solid #f1eef5;">
                     {{ $line->quantity }}
                 </td>
                 <td align="right" style="padding:12px 16px;font-size:14px;color:#2f2f36;border-top:1px solid #f1eef5;">
-                    ${{ number_format((float) $line->line_total, 2) }}
+                    {{ number_format((float) $line->line_total, 2) }}
                 </td>
             </tr>
         @endforeach
@@ -39,7 +43,7 @@
                 Your subtotal
             </td>
             <td align="right" style="padding:14px 16px;font-size:16px;font-weight:700;color:#cd69da;border-top:1px solid #ece9f1;">
-                ${{ number_format($sellerTotal, 2) }}
+                {{ number_format($sellerTotal, 2) }}
             </td>
         </tr>
     </table>

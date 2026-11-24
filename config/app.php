@@ -67,7 +67,7 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'https://karimdev.site'),
 
-    'admin_email' => env('ADMIN_EMAIL', 'admin@roserabloom.test'),
+    'admin_email' => env('ADMIN_EMAIL', 'karimhassan263372@gmail.com'),
 
     /*
     |--------------------------------------------------------------------------

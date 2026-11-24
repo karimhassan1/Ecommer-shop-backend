@@ -69,6 +69,13 @@ class RoleSeeder extends Seeder
             self::SELLER => [
                 'dashboard.view',
                 'product.view', 'product.create', 'product.update', 'product.delete',
+                // A seller files their own products under a brand and a
+                // category, so they must be able to *read* both lists. The
+                // queries narrow every list to the rows their own catalogue
+                // uses, so `brand.view` here never exposes another seller's
+                // labels.
+                'brand.view',
+                'category.view',
                 'order.view', 'order.update-status',
                 'review.view',
             ],

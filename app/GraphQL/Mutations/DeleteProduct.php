@@ -2,6 +2,7 @@
 
 namespace App\GraphQL\Mutations;
 
+use App\Models\OrderItem;
 use App\Models\Product;
 use GraphQL\Error\UserError;
 use Nodesol\LaraQL\Attributes\Mutation;
@@ -35,6 +36,20 @@ class DeleteProduct
         // products, staff and administrators delete anything.
         if (! auth()->user()?->can('delete', $product)) {
             throw new UserError('You can only delete products you sell.');
+        }
+
+        // A product that already appears on an order is history, not stock. Its
+        // lines point at this row, so deleting it would either break the order
+        // or orphan the sale; the panel offers "hide from the storefront"
+        // instead, which keeps the order readable and the product unpurchasable.
+        $ordered = OrderItem::query()
+            ->where('product_id', $product->id)
+            ->exists();
+
+        if ($ordered) {
+            throw new UserError(
+                'This product appears on an order, so it cannot be deleted. Hide it from the storefront instead.'
+            );
         }
 
         $id = $product->id;

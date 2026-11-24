@@ -6,11 +6,40 @@ namespace App\Support;
  * Pakistani addresses.
  *
  * One source of truth for the province -> city list used by the storefront
- * checkout, the customer profile and the order validation. The data itself
- * lives in `config/pakistan.php` so it can be edited without touching code.
+ * checkout, the customer profile and the order validation.
+ *
+ * The shipped list lives in `config/pakistan.php` (the offline fallback that
+ * ships with the shop). GeoService merges it with the live third party
+ * country/state/city data and registers the result here with
+ * `Address::useCatalogue()`, so the browser is offered exactly the list
+ * PlaceOrder validates against, no matter which source produced it.
  */
 final class Address
 {
+    /**
+     * Replace the in-memory catalogue for the rest of the request.
+     *
+     * The catalogue lives in the container, not in a static property: the API
+     * runs under Octane, where a static would survive into the next request and
+     * serve one customer the list built for another (or for a test fixture).
+     * Container bindings are flushed per request, and a test gets a fresh
+     * application, so both stay isolated.
+     *
+     * Pass `null` to fall back to `config('pakistan')` again.
+     *
+     * @param  array<string, array<int, string>>|null  $catalogue
+     */
+    public static function useCatalogue(?array $catalogue): void
+    {
+        if ($catalogue === null) {
+            app()->forgetInstance(self::class);
+
+            return;
+        }
+
+        app()->scoped(self::class, static fn (): array => $catalogue);
+    }
+
     /**
      * Province name => cities, in display order.
      *
@@ -18,6 +47,10 @@ final class Address
      */
     public static function provinces(): array
     {
+        if (app()->bound(self::class)) {
+            return (array) app()->make(self::class);
+        }
+
         return (array) config('pakistan', []);
     }
 

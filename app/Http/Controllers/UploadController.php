@@ -8,11 +8,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 /**
- * Stores product images uploaded from the admin panel.
+ * Stores and removes images uploaded from the admin panel.
  *
  * The destination is whatever `config('media.disk')` points at, so the same
- * endpoint writes to the local public disk during development and to S3 in
- * production without any change here.
+ * endpoint writes to the local public disk during development and to the Oracle
+ * Cloud / S3 bucket in production without any change here.
  */
 class UploadController extends Controller
 {
@@ -53,5 +53,49 @@ class UploadController extends Controller
             'name' => $file->getClientOriginalName(),
             'size' => $file->getSize(),
         ], 201);
+    }
+
+    /**
+     * Delete a picture that was uploaded but never attached to anything.
+     *
+     * Without this, picking a file, changing your mind and saving left the
+     * object behind in the bucket forever. The admin forms call it when a
+     * freshly uploaded picture is removed before the form is submitted; pictures
+     * already referenced by a row are cleaned up by that model's own hooks.
+     *
+     * The path is checked so only the media folder can be touched: a caller must
+     * not be able to use this to delete an arbitrary object.
+     */
+    public function destroy(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user || (! $user->can('product.create') && ! $user->can('setting.update'))) {
+            return response()->json([
+                'message' => 'You are not allowed to delete files.',
+            ], 403);
+        }
+
+        $request->validate([
+            'path' => ['required', 'string', 'max:2048'],
+        ]);
+
+        $path = (string) $request->input('path');
+        $root = trim($this->media->folder(), '/');
+
+        // Only files inside the configured media folder may be removed, and a
+        // traversal attempt is refused outright.
+        if (str_contains($path, '..') || ! str_starts_with(ltrim($path, '/'), $root.'/')) {
+            return response()->json([
+                'message' => 'That file cannot be deleted from here.',
+            ], 422);
+        }
+
+        $this->media->forget($path);
+
+        return response()->json([
+            'deleted' => true,
+            'path' => $path,
+        ]);
     }
 }

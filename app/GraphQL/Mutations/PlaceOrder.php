@@ -3,6 +3,7 @@
 namespace App\GraphQL\Mutations;
 
 use App\Services\CartService;
+use App\Services\GeoService;
 use App\Services\MailService;
 use App\Support\Address;
 use GraphQL\Error\UserError;
@@ -31,11 +32,17 @@ class PlaceOrder
     public function __construct(
         private readonly CartService $cart,
         private readonly MailService $mail,
+        private readonly GeoService $geo,
     ) {}
 
     /** @param array{} $args */
     public function __invoke($root, array $args)
     {
+        // Validate the province / city against the same live catalogue the
+        // checkout selects were filled from (third party data plus the shipped
+        // fallback), not only the list compiled into this release.
+        $this->geo->bootAddressCatalogue();
+
         $data = $this->validatedAddress($args);
 
         $order = $this->cart->checkout(auth()->user(), $data);

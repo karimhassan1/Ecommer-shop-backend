@@ -72,9 +72,25 @@ class VariantImage extends Model
     protected static function booted(): void
     {
         // Remove the file when the row is deleted so storage does not grow.
-        // Works for both the local disk and S3; absolute URLs are ignored.
+        // Works for both the local disk and Oracle / S3; `forget()` resolves a
+        // resolved URL back to its object key and ignores foreign URLs.
         static::deleting(function (VariantImage $image): void {
             app(MediaService::class)->forget($image->getRawOriginal('url'));
+        });
+
+        // Replacing the photo on an existing row would otherwise leak the file
+        // the row used to point at.
+        static::updating(function (VariantImage $image): void {
+            if (! $image->isDirty('url')) {
+                return;
+            }
+
+            $previous = $image->getRawOriginal('url');
+            $next = $image->getAttributes()['url'] ?? null;
+
+            if ($previous !== null && $previous !== '' && $previous !== $next) {
+                app(MediaService::class)->forget($previous);
+            }
         });
     }
 }

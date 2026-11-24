@@ -100,6 +100,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'verification_code',
         'verification_code_expires_at',
         'verification_attempts',
+        'password_reset_code',
+        'password_reset_code_expires_at',
+        'password_reset_attempts',
     ];
 
     /**
@@ -113,6 +116,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'verification_code_expires_at' => 'datetime',
             'verification_attempts' => 'integer',
+            'password_reset_code_expires_at' => 'datetime',
+            'password_reset_attempts' => 'integer',
             'is_admin' => 'boolean',
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
@@ -251,5 +256,32 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->setRelation('cart', $cart);
 
         return $cart;
+    }
+
+    /**
+     * Remove a replaced / cleared avatar from storage.
+     *
+     * The profile form stores a single `avatar`, so a new value (or an empty
+     * one) always orphans the previous file. Deleting it here means the Oracle
+     * Cloud bucket never fills up with pictures nobody references.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (User $user): void {
+            if (! $user->isDirty('avatar')) {
+                return;
+            }
+
+            $previous = $user->getRawOriginal('avatar');
+            $next = $user->getAttributes()['avatar'] ?? null;
+
+            if ($previous !== null && $previous !== '' && $previous !== $next) {
+                app(\App\Services\MediaService::class)->forget($previous);
+            }
+        });
+
+        static::deleting(function (User $user): void {
+            app(\App\Services\MediaService::class)->forget($user->getRawOriginal('avatar'));
+        });
     }
 }

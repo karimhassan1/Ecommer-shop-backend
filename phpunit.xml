@@ -43,5 +43,12 @@
         <env name="OCI_NAMESPACE" value=""/>
         <env name="OCI_REGION" value=""/>
         <env name="OCI_PUBLIC_URL" value=""/>
+        <!--
+            The province / city list is pulled from a third party geo API in
+            production. The suite must never reach the network, so it runs
+            against the shipped `config/pakistan.php` list; a test that needs the
+            remote shape stubs `Http::fake()` itself.
+        -->
+        <env name="GEO_ENABLED" value="false"/>
     </php>
 </phpunit>

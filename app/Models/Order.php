@@ -25,7 +25,11 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
     ],
     operations: [
         'query' => [
-            'query' => '@guard @permission(require: ["order.view-all", "order.view"]) @find',
+            // Only the shop side may look an order up by id: a seller has to go
+            // through `ManageOrders` (scoped to their own line items) and a
+            // customer through `MyOrders`, so one seller can never read another
+            // seller's order or a stranger's delivery address.
+            'query' => '@guard @permission(require: ["order.view-all"]) @find',
         ],
         'query_collection' => [
             'query' => '@guard @permission(require: ["order.view-all"]) @paginate(defaultCount: 10)',

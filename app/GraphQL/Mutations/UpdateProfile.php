@@ -2,6 +2,7 @@
 
 namespace App\GraphQL\Mutations;
 
+use App\Services\GeoService;
 use App\Support\Address;
 use GraphQL\Error\UserError;
 use Nodesol\LaraQL\Attributes\Mutation;
@@ -29,10 +30,17 @@ use Nodesol\LaraQL\Attributes\Mutation;
 )]
 class UpdateProfile
 {
+    public function __construct(private readonly GeoService $geo) {}
+
     /** @param array{} $args */
     public function __invoke($root, array $args)
     {
         $user = auth()->user();
+
+        // Province / city are validated against the live catalogue the profile
+        // form was filled from, which is the third party list merged over the
+        // shipped one.
+        $this->geo->bootAddressCatalogue();
 
         // Province / city are validated together: a city is only meaningful
         // inside the province that contains it.

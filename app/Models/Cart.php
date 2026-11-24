@@ -15,19 +15,23 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
 #[AttributesModel(
     operations: [
         'query' => [
-            'query' => '@guard @permission @find',
+            // A cart belongs to exactly one customer and is only ever read
+            // through MyCart, which pins the lookup to the signed in user. The
+            // generated lookup would let anybody read a stranger's basket by id,
+            // so it is reserved for the shop side.
+            'query' => '@guard @permission(require: ["user.view"]) @find',
         ],
         'query_collection' => [
-            'query' => '@guard @permission @paginate(defaultCount: 10)',
+            'query' => '@guard @permission(require: ["user.view"]) @paginate(defaultCount: 10)',
         ],
         'create' => [
-            'query' => '@guard @permission @create',
+            'query' => '@guard @permission(require: ["user.update"]) @create',
         ],
         'update' => [
-            'query' => '@guard @permission @update',
+            'query' => '@guard @permission(require: ["user.update"]) @update',
         ],
         'delete' => [
-            'query' => '@guard @permission @delete',
+            'query' => '@guard @permission(require: ["user.delete"]) @delete',
         ],
     ],
     type_override: [

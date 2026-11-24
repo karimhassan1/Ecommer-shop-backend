@@ -31,8 +31,20 @@ class AdminCategories
     {
         $search = trim((string) ($args['search'] ?? ''));
 
+        $user = $this->requireAdmin();
+
         return Category::query()
             ->withCount('products')
+            // A seller only files their own products under a category, so the
+            // screen lists the categories they actually use. Administrators and
+            // other staff still see the whole taxonomy.
+            ->when(
+                $user->isSeller(),
+                fn ($query) => $query->whereHas(
+                    'products',
+                    fn ($product) => $product->where('seller_id', $user->id)
+                )
+            )
             ->when(
                 ! empty($args['type']),
                 fn ($query) => $query->where('type', $args['type'])
