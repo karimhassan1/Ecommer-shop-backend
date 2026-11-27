@@ -76,6 +76,10 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
         'in_stock' => 'Boolean!',
         'total_stock' => 'Int!',
         'primary_image' => 'String',
+        // The photos a product card carousels through, default variant first.
+        // Served from the listing query itself so a card never has to fetch a
+        // product's variant tree just to show more than one picture.
+        'card_images' => '[String!]!',
         'lowest_price' => 'Float!',
         'discount_percent' => 'Int!',
         'sizes' => '[String!]!',
@@ -468,6 +472,40 @@ class Product extends Model
                 ->map(fn (ProductVariant $variant): ?string => $variant->primary_image)
                 ->filter()
                 ->first();
+    }
+
+    /**
+     * The photos a product card can carousel through.
+     *
+     * The default variant's gallery comes first — so the first picture is always
+     * the one the customer would see on the product page — and photos from the
+     * other variants follow, which is what makes a "the other colour" swipe
+     * possible straight from the listing.
+     *
+     * Duplicates are removed: the same file often appears on several variants of
+     * one product, and repeating it would make the carousel look stuck.
+     *
+     * @return array<int, string>
+     */
+    public function getCardImagesAttribute(): array
+    {
+        $default = $this->default_variant;
+
+        $ordered = collect(
+            $default
+                ? $default->image_urls
+                : []
+        )->merge(
+            $this->variants
+                ->reject(fn (ProductVariant $variant): bool => $default !== null && $variant->id === $default->id)
+                ->flatMap(fn (ProductVariant $variant): array => $variant->image_urls)
+        );
+
+        return $ordered
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**
