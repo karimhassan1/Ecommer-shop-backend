@@ -37,6 +37,10 @@ class PageContent extends Model
      * panel shows it as the placeholder so the first save is a replace, not a
      * guess.
      *
+     * The two catalogue pages (`clothing`, `fragrances`) are deliberately absent:
+     * they open straight into the filter sidebar and the product grid, so there
+     * is no hero to replace and the admin editor lists no row for them.
+     *
      * @var array<string, array<string, string>>
      */
     public const PAGES = [
@@ -46,22 +50,6 @@ class PageContent extends Model
             'subtitle' => 'Fashion and Fragrance Under One Roof.',
             'hero_image' => '',
             'cta_label' => 'Shop Now',
-            'cta_url' => '/fragrances',
-        ],
-        'clothing' => [
-            'badge' => 'Wardrobe',
-            'title' => 'Timeless Fashion For Every You',
-            'subtitle' => 'Tradition Meets Style.',
-            'hero_image' => '',
-            'cta_label' => 'Explore Collection',
-            'cta_url' => '/clothing',
-        ],
-        'fragrances' => [
-            'badge' => 'Fine fragrance',
-            'title' => 'Premium Fragrances For Every Mood',
-            'subtitle' => 'Unleash Your Signature Scent.',
-            'hero_image' => '',
-            'cta_label' => 'Explore Collection',
             'cta_url' => '/fragrances',
         ],
         'about' => [

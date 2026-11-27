@@ -4,6 +4,8 @@ namespace App\GraphQL\Queries;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Color;
+use App\Models\FabricType;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Nodesol\LaraQL\Attributes\Query;
@@ -24,6 +26,10 @@ use Nodesol\LaraQL\Attributes\Type;
         'max_price' => 'Float!',
         'brands' => '[ShopFacet!]!',
         'categories' => '[ShopFacet!]!',
+        'fabric_types' => '[ShopFacet!]!',
+        'colors' => '[ShopColorFacet!]!',
+        'seasons' => '[ShopOptionFacet!]!',
+        'fabric_qualities' => '[ShopOptionFacet!]!',
         'sizes' => '[String!]!',
     ]
 )]
@@ -58,6 +64,12 @@ class ShopFilters
             'max_price' => (float) ($price->max_price ?? 0),
             'brands' => $this->brands($productScope),
             'categories' => $this->categories($productScope, $type),
+            // Clothing only: a perfume is never made of a fabric, so the
+            // fragrance page gets empty lists instead of facets nobody can use.
+            'fabric_types' => $this->fabricTypes($productScope, $type),
+            'colors' => $this->colors($productScope, $type),
+            'seasons' => $this->optionFacets($productScope, $type, 'season', config('shop.seasons', [])),
+            'fabric_qualities' => $this->optionFacets($productScope, $type, 'fabric_quality', config('shop.fabric_qualities', [])),
             'sizes' => $this->sizes($type),
         ];
     }
@@ -128,5 +140,112 @@ class ShopFilters
             ->sort()
             ->values()
             ->all();
+    }
+
+    /**
+     * Fabrics the catalogue is actually made of, with their product count.
+     *
+     * Clothing only: perfume has no fabric, so the fragrance page receives an
+     * empty list and its sidebar omits the block entirely.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function fabricTypes(callable $productScope, ?string $type): array
+    {
+        if ($type === Product::TYPE_PERFUME) {
+            return [];
+        }
+
+        return FabricType::query()
+            ->where('is_active', true)
+            ->whereHas('products', $productScope)
+            ->withCount(['products' => $productScope])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (FabricType $fabric): array => [
+                'id' => (int) $fabric->id,
+                'name' => (string) $fabric->name,
+                'slug' => (string) ($fabric->slug ?? $fabric->id),
+                'product_count' => (int) $fabric->products_count,
+            ])
+            ->all();
+    }
+
+    /**
+     * Colours the catalogue comes in, with how many products carry each.
+     *
+     * The count is per product (not per variant), so a product available in
+     * three sizes of one colour adds 1 to that colour, not 3.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function colors(callable $productScope, ?string $type): array
+    {
+        return Color::query()
+            ->where('is_active', true)
+            ->whereHas('variants.product', $productScope)
+            ->withCount(['variants as product_count' => fn ($query) => $query
+                ->where('is_active', true)
+                ->whereHas('product', $productScope)
+                ->selectRaw('count(distinct product_id)'),
+            ])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (Color $color): bool => (int) $color->product_count > 0)
+            ->map(fn (Color $color): array => [
+                'id' => (int) $color->id,
+                'name' => (string) $color->name,
+                'hex' => $color->hex,
+                'product_count' => (int) $color->product_count,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * A fixed-list facet (`season`, `fabric_quality`) with its product counts.
+     *
+     * Only values that at least one product actually uses are returned, so the
+     * customer never clicks a chip that leads to an empty listing. The order and
+     * the labels come from `config('shop.*')`, so the panel, the API and the
+     * storefront can never disagree about what "all-season" is called.
+     *
+     * @param  array<string, string>  $labels  value => label
+     * @return array<int, array<string, mixed>>
+     */
+    protected function optionFacets(callable $productScope, ?string $type, string $column, array $labels): array
+    {
+        // Perfume carries neither season nor fabric quality.
+        if ($type === Product::TYPE_PERFUME) {
+            return [];
+        }
+
+        $counts = Product::query()
+            ->whereNotNull($column)
+            ->tap($productScope)
+            ->selectRaw("{$column} as value, count(*) as product_count")
+            ->groupBy($column)
+            ->pluck('product_count', 'value')
+            ->all();
+
+        $rows = [];
+
+        foreach ($labels as $value => $label) {
+            $count = (int) ($counts[$value] ?? 0);
+
+            if ($count === 0) {
+                continue;
+            }
+
+            $rows[] = [
+                'value' => (string) $value,
+                'label' => (string) $label,
+                'product_count' => $count,
+            ];
+        }
+
+        return $rows;
     }
 }

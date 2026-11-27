@@ -32,6 +32,9 @@ use Nodesol\LaraQL\Attributes\Mutation;
         'name' => 'String! @rules(apply:["required","max:180"])',
         'description' => 'String @rules(apply:["nullable","max:5000","min:20"])',
         'fabric' => 'String @rules(apply:["nullable","max:500"])',
+        'fabric_type_id' => 'ID',
+        'season' => 'String @rules(apply:["nullable","in:summer,winter,all-season"])',
+        'fabric_quality' => 'String @rules(apply:["nullable","in:premium,standard"])',
         'fit_details' => 'String @rules(apply:["nullable","max:500"])',
         'is_active' => 'Boolean! = true',
         'is_featured' => 'Boolean! = false',
@@ -68,6 +71,11 @@ class CreateProduct
                 'description' => $this->text($args['description'] ?? null),
                 // Perfume never stores clothing copy, and the other way round.
                 'fabric' => $isPerfume ? null : $this->text($args['fabric'] ?? null),
+                // The browsable fabric, its season and quality grade. The model
+                // normalises them and clears all three for a perfume.
+                'fabric_type_id' => $args['fabric_type_id'] ?? null,
+                'season' => $args['season'] ?? null,
+                'fabric_quality' => $args['fabric_quality'] ?? null,
                 'fit_details' => $isPerfume ? null : $this->text($args['fit_details'] ?? null),
                 'is_active' => (bool) ($args['is_active'] ?? true),
                 'is_featured' => (bool) ($args['is_featured'] ?? false),
@@ -143,6 +151,7 @@ class CreateProduct
             'variants.images',
             'categories',
             'brands',
+            'fabricType',
             'reviews',
         ]);
     }

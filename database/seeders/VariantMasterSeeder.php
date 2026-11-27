@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Color;
+use App\Models\FabricType;
 use App\Models\Size;
 use App\Models\Volume;
 use Illuminate\Database\Seeder;
@@ -17,6 +18,25 @@ class VariantMasterSeeder extends Seeder
 {
     public function run(): void
     {
+        // The clothing "Fabric Type" filter list. Perfume never uses one.
+        $fabrics = [
+            'Wash & Wear',
+            'Cotton',
+            'Boski',
+            'Khaddar',
+            'Karandi',
+            'Linen',
+            'Wool',
+            'Blended Fabrics',
+        ];
+
+        foreach ($fabrics as $index => $name) {
+            FabricType::updateOrCreate(
+                ['name' => $name],
+                ['sort_order' => $index, 'is_active' => true]
+            );
+        }
+
         $colors = [
             ['Rose Pink', '#e8a0bf'],
             ['Ivory', '#f5f0e1'],

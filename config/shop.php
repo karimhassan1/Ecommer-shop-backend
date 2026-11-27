@@ -84,6 +84,31 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Clothing filter attributes
+    |--------------------------------------------------------------------------
+    |
+    | The fixed lists the storefront's filter sidebar offers for clothing. A
+    | perfume carries none of them, which is why the fragrance page hides the
+    | fabric type, season and fabric quality blocks entirely.
+    |
+    | Fabric *types* are records (Admin → Fabric types), not this config, so an
+    | administrator can add one without a deploy.
+    |
+    */
+
+    'seasons' => [
+        'summer' => 'Summer',
+        'winter' => 'Winter',
+        'all-season' => 'All Season',
+    ],
+
+    'fabric_qualities' => [
+        'premium' => 'Premium',
+        'standard' => 'Standard',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Pakistan shipping
     |--------------------------------------------------------------------------
     |

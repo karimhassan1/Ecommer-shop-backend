@@ -32,6 +32,9 @@ use Nodesol\LaraQL\Attributes\Mutation;
         'name' => 'String @rules(apply:["nullable","max:180"])',
         'description' => 'String @rules(apply:["nullable","max:5000","min:20"])',
         'fabric' => 'String @rules(apply:["nullable","max:500"])',
+        'fabric_type_id' => 'ID',
+        'season' => 'String @rules(apply:["nullable","in:summer,winter,all-season"])',
+        'fabric_quality' => 'String @rules(apply:["nullable","in:premium,standard"])',
         'fit_details' => 'String @rules(apply:["nullable","max:500"])',
         'is_active' => 'Boolean',
         'is_featured' => 'Boolean',
@@ -90,6 +93,7 @@ class UpdateProduct
                 'variants.images',
                 'categories',
                 'brands',
+                'fabricType',
                 'reviews',
             ]);
         });
@@ -117,8 +121,25 @@ class UpdateProduct
             // Switching type invalidates the other type's detail block.
             if ($payload['type'] === Product::TYPE_PERFUME) {
                 $payload['fabric'] = null;
+                $payload['fabric_type_id'] = null;
+                $payload['season'] = null;
+                $payload['fabric_quality'] = null;
                 $payload['fit_details'] = null;
             }
+        }
+
+        // The three filter attributes are patched independently, so a save that
+        // only touches the title never clears them.
+        if (array_key_exists('fabric_type_id', $args)) {
+            $payload['fabric_type_id'] = $args['fabric_type_id'] ?: null;
+        }
+
+        if (array_key_exists('season', $args)) {
+            $payload['season'] = $args['season'] ?: null;
+        }
+
+        if (array_key_exists('fabric_quality', $args)) {
+            $payload['fabric_quality'] = $args['fabric_quality'] ?: null;
         }
 
         if (array_key_exists('audience', $args) && $args['audience'] !== null) {

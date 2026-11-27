@@ -73,11 +73,21 @@ class PageHeroTest extends TestCase
 
         $this->actingAs($admin)->graphQL(/** @lang GraphQL */ '
             mutation {
-                SavePageHero(page: "clothing", hero_image: "pages/clothing.jpg") { title }
+                SavePageHero(page: "about", hero_image: "pages/about.jpg") { title }
             }
         ')
             ->assertJsonMissingPath('errors')
-            ->assertJsonPath('data.SavePageHero.title', PageContent::PAGES['clothing']['title']);
+            ->assertJsonPath('data.SavePageHero.title', PageContent::PAGES['about']['title']);
+    }
+
+    /**
+     * The catalogue pages open straight into the filter sidebar and product
+     * grid, so they have no hero row to edit any more.
+     */
+    public function test_the_catalogue_pages_have_no_hero(): void
+    {
+        $this->assertArrayNotHasKey('clothing', PageContent::PAGES);
+        $this->assertArrayNotHasKey('fragrances', PageContent::PAGES);
     }
 
     public function test_only_staff_can_edit_a_page_hero(): void

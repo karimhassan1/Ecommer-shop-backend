@@ -30,6 +30,13 @@ use Nodesol\LaraQL\Attributes\Query;
         'category_slug: String',
         'brand_id: ID',
         'brand_slug: String',
+        'brand_ids: [ID!]',
+        'fabric_type_id: ID',
+        'fabric_type_slug: String',
+        'fabric_type_ids: [ID!]',
+        'color_ids: [ID!]',
+        'seasons: [String!]',
+        'fabric_qualities: [String!]',
         'min_price: Float',
         'max_price: Float',
         'in_stock_only: Boolean! = false',
@@ -57,6 +64,7 @@ class BrowseProducts
                 'brands',
                 'categories',
                 'seller',
+                'fabricType',
                 'variants.color',
                 'variants.size',
                 'variants.volume',
@@ -119,6 +127,80 @@ class BrowseProducts
                     'brands',
                     fn ($q) => $q->where('slug', $args['brand_slug'])
                 )
+            )
+            // Multi-select brand chips: any of the selected labels matches.
+            ->when(
+                ! empty($args['brand_ids']),
+                function ($builder) use ($args): void {
+                    $ids = array_values(array_filter((array) $args['brand_ids']));
+
+                    $builder->whereHas(
+                        'brands',
+                        fn ($q) => $q->whereKey($ids)
+                    );
+                }
+            )
+            // "Fabric Type" (clothing only). A perfume never carries one, so
+            // this filter simply excludes every perfume — which is correct, as
+            // the facet is hidden on the fragrance page.
+            ->when(
+                ! empty($args['fabric_type_id']),
+                fn ($builder) => $builder->where('fabric_type_id', (int) $args['fabric_type_id'])
+            )
+            ->when(
+                ! empty($args['fabric_type_ids']),
+                function ($builder) use ($args): void {
+                    $ids = array_values(array_filter((array) $args['fabric_type_ids']));
+
+                    $builder->whereIn('fabric_type_id', $ids);
+                }
+            )
+            ->when(
+                ! empty($args['fabric_type_slug']),
+                fn ($builder) => $builder->whereHas(
+                    'fabricType',
+                    fn ($q) => $q->where('slug', $args['fabric_type_slug'])
+                )
+            )
+            // Colour swatches: the product must come in at least one of the
+            // selected colours.
+            ->when(
+                ! empty($args['color_ids']),
+                function ($builder) use ($args): void {
+                    $ids = array_values(array_filter((array) $args['color_ids']));
+
+                    $builder->whereHas('variants', function ($q) use ($ids): void {
+                        $q->where('is_active', true)->whereIn('color_id', $ids);
+                    });
+                }
+            )
+            // Season: "All season" pieces match a summer *and* a winter filter,
+            // which is what a customer expects from a year-round garment.
+            ->when(
+                ! empty($args['seasons']),
+                function ($builder) use ($args): void {
+                    $seasons = array_values(array_filter((array) $args['seasons']));
+
+                    $builder->where(function ($match) use ($seasons): void {
+                        $match->whereIn('season', $seasons);
+
+                        if (in_array(Product::SEASON_ALL, $seasons, true)) {
+                            return;
+                        }
+
+                        // Only when the customer did not ask for all-season do
+                        // the year-round pieces join the result.
+                        $match->orWhere('season', Product::SEASON_ALL);
+                    });
+                }
+            )
+            ->when(
+                ! empty($args['fabric_qualities']),
+                function ($builder) use ($args): void {
+                    $values = array_values(array_filter((array) $args['fabric_qualities']));
+
+                    $builder->whereIn('fabric_quality', $values);
+                }
             )
             // A range matches the variant the customer could actually buy, so
             // the discount price is what the shop filters on. Column-to-value

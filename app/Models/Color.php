@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Nodesol\LaraQL\Attributes\Model as AttributesModel;
 
 /**
@@ -34,6 +35,10 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
         'sort_order' => 'Int!',
         'is_active' => 'Boolean!',
         'hex' => 'String',
+        // The variants using this colour. A product is "available in" a colour
+        // when at least one of its variants carries it, which is what the
+        // storefront colour facet counts.
+        'variants' => '[ProductVariant!]! @hasMany',
     ],
 )]
 class Color extends Model
@@ -57,5 +62,11 @@ class Color extends Model
     public function getHexAttribute(): ?string
     {
         return $this->hex_code;
+    }
+
+    /** Every variant that comes in this colour. */
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
     }
 }

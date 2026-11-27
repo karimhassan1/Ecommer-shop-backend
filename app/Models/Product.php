@@ -45,6 +45,9 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
         'rating_average' => 'Float',
         'rating_count' => 'Int',
         'seller_id' => 'ID',
+        'fabric_type_id' => 'ID',
+        'season' => 'String',
+        'fabric_quality' => 'String',
     ],
     type_override: [
         'type' => 'String!',
@@ -61,6 +64,11 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
         'categories' => '[Category!]! @belongsToMany',
         'reviews' => '[Review!]! @hasMany',
         'variants' => '[ProductVariant!]! @hasMany',
+        'fabric_type_id' => 'ID',
+        // The "Fabric Type" facet, exposed under the relation's own name so
+        // LaraQL's `@belongsTo` resolves `fabricType()` directly.
+        'season' => 'String',
+        'fabric_quality' => 'String',
         'default_variant' => 'ProductVariant',
         'default_variant_id' => 'ID',
         'colors' => '[ProductColorGroup!]!',
@@ -98,6 +106,27 @@ class Product extends Model
 
     public const AUDIENCES = [self::AUDIENCE_MEN, self::AUDIENCE_WOMEN, self::AUDIENCE_UNISEX];
 
+    /**
+     * The season a clothing piece is made for.
+     *
+     * `all-season` is the neutral value, so a product that fits year round still
+     * matches when a customer filters by either summer or winter.
+     */
+    public const SEASON_SUMMER = 'summer';
+
+    public const SEASON_WINTER = 'winter';
+
+    public const SEASON_ALL = 'all-season';
+
+    public const SEASONS = [self::SEASON_SUMMER, self::SEASON_WINTER, self::SEASON_ALL];
+
+    /** How the fabric is graded, the "Fabric Quality" facet. */
+    public const QUALITY_PREMIUM = 'premium';
+
+    public const QUALITY_STANDARD = 'standard';
+
+    public const QUALITIES = [self::QUALITY_PREMIUM, self::QUALITY_STANDARD];
+
     protected $fillable = [
         'type',
         'audience',
@@ -105,6 +134,9 @@ class Product extends Model
         'name',
         'description',
         'fabric',
+        'fabric_type_id',
+        'season',
+        'fabric_quality',
         'fit_details',
         'is_active',
         'is_featured',
@@ -115,6 +147,7 @@ class Product extends Model
         'is_featured' => 'boolean',
         'rating_average' => 'float',
         'rating_count' => 'integer',
+        'fabric_type_id' => 'integer',
     ];
 
     /**
@@ -187,6 +220,25 @@ class Product extends Model
                 : self::AUDIENCE_UNISEX;
         });
 
+        // The filter attributes are clothing-only, and a blank or unknown value
+        // would make a product unreachable from every chip, so they are
+        // normalised here rather than in each mutation.
+        static::saving(function (Product $product): void {
+            if ($product->type === self::TYPE_PERFUME) {
+                $product->fabric_type_id = null;
+                $product->season = null;
+                $product->fabric_quality = null;
+
+                return;
+            }
+
+            $season = self::normalise($product->season, self::SEASONS);
+            $quality = self::normalise($product->fabric_quality, self::QUALITIES);
+
+            $product->season = $season;
+            $product->fabric_quality = $quality;
+        });
+
         static::creating(function (Product $product): void {
             $user = auth()->user();
 
@@ -237,6 +289,18 @@ class Product extends Model
         return $this->belongsToMany(Brand::class, 'product_brands');
     }
 
+    /**
+     * The fabric this piece is made of, for the "Fabric Type" filter.
+     *
+     * NULL for perfume (and for a clothing product nobody has classified yet),
+     * which is exactly the state the filter treats as "not listed under a
+     * fabric".
+     */
+    public function fabricType(): BelongsTo
+    {
+        return $this->belongsTo(FabricType::class);
+    }
+
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(Category::class, 'product_categories');
@@ -256,6 +320,21 @@ class Product extends Model
     public function isPerfume(): bool
     {
         return $this->type === self::TYPE_PERFUME;
+    }
+
+    /**
+     * Lower-case a value and keep it only when it is one of `$allowed`.
+     *
+     * Shared by the season / fabric-quality normalisers so an unknown string
+     * becomes NULL instead of a value no filter can ever match.
+     *
+     * @param  array<int, string>  $allowed
+     */
+    protected static function normalise(mixed $value, array $allowed): ?string
+    {
+        $candidate = strtolower(trim((string) ($value ?? '')));
+
+        return in_array($candidate, $allowed, true) ? $candidate : null;
     }
 
     /**
