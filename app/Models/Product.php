@@ -65,8 +65,6 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
         'reviews' => '[Review!]! @hasMany',
         'variants' => '[ProductVariant!]! @hasMany',
         'fabric_type_id' => 'ID',
-        // The "Fabric Type" facet, exposed under the relation's own name so
-        // LaraQL's `@belongsTo` resolves `fabricType()` directly.
         'season' => 'String',
         'fabric_quality' => 'String',
         'default_variant' => 'ProductVariant',
@@ -76,9 +74,6 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
         'in_stock' => 'Boolean!',
         'total_stock' => 'Int!',
         'primary_image' => 'String',
-        // The photos a product card carousels through, default variant first.
-        // Served from the listing query itself so a card never has to fetch a
-        // product's variant tree just to show more than one picture.
         'card_images' => '[String!]!',
         'lowest_price' => 'Float!',
         'discount_percent' => 'Int!',
