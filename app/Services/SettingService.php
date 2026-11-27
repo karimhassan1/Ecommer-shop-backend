@@ -25,7 +25,7 @@ class SettingService
      * @var array<string, string>
      */
     public const DEFAULTS = [
-        'shop_name' => 'Rosera Bloom',
+        'shop_name' => 'ARSH Wear & Fragrance',
         'currency_code' => 'PKR',
         'currency_symbol' => 'Rs',
         'shipping_fee' => '250',
@@ -33,10 +33,10 @@ class SettingService
         'cod_enabled' => '1',
         'cod_fee' => '100',
         'bank_enabled' => '1',
-        'bank_details' => 'Meezan Bank · Rosera Bloom · 01234567890123',
+        'bank_details' => 'Meezan Bank · ARSH Wear & Fragrance · 01234567890123',
         'wallet_enabled' => '1',
         'wallet_number' => '0300 1234567 (Easypaisa)',
-        'support_email' => 'support@roserabloom.pk',
+        'support_email' => 'support@arshwearfragrance.pk',
         'support_phone' => '+92 300 1234567',
     ];
 

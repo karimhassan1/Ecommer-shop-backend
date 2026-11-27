@@ -15,7 +15,7 @@ class ReviewSeeder extends Seeder
      */
     public function run(): void
     {
-        $customer = User::whereEmail('customer@roserabloom.test')->first();
+        $customer = User::whereEmail('customer@arshwearfragrance.test')->first();
 
         if (! $customer) {
             return;

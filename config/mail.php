@@ -124,7 +124,7 @@ return [
     */
 
     'branding' => [
-        'name' => env('MAIL_BRAND_NAME', env('APP_NAME', 'Rosera Bloom')),
+        'name' => env('MAIL_BRAND_NAME', env('APP_NAME', 'ARSH Wear & Fragrance')),
         'support_email' => env('MAIL_SUPPORT_EMAIL', env('MAIL_FROM_ADDRESS', 'hello@example.com')),
         'support_phone' => env('MAIL_SUPPORT_PHONE', '+1 (555) 010-2030'),
         'frontend_url' => env('FRONTEND_URL', 'http://localhost:9000'),

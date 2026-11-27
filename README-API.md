@@ -1,6 +1,6 @@
-# Rosera Bloom API
+# ARSH Wear & Fragrance API
 
-GraphQL API for the Rosera Bloom storefront and its admin panel.
+GraphQL API for the ARSH Wear & Fragrance storefront and its admin panel.
 
 - **Framework:** Laravel 12
 - **Schema:** Lighthouse 6 driven by PHP attributes (`nodesol/laraql`)
@@ -24,8 +24,8 @@ php artisan serve          # http://127.0.0.1:8000/graphql
 
 | Role     | Email                        | Password   |
 | -------- | ---------------------------- | ---------- |
-| Admin    | `admin@roserabloom.test`     | `password` |
-| Customer | `customer@roserabloom.test`  | `password` |
+| Admin    | `admin@arshwearfragrance.test`     | `password` |
+| Customer | `customer@arshwearfragrance.test`  | `password` |
 
 Seeding also creates 8 catalog products across 3 brands and 4 categories, so
 the storefront is never empty on a fresh install.
@@ -213,10 +213,10 @@ MEDIA_PUBLIC_ACL=true
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_DEFAULT_REGION=ap-south-1
-AWS_BUCKET=rosera-media
+AWS_BUCKET=arsh-media
 ```
 
-That produces `https://rosera-media.s3.ap-south-1.amazonaws.com/products/x.jpg`.
+That produces `https://arsh-media.s3.ap-south-1.amazonaws.com/products/x.jpg`.
 A custom endpoint works too:
 
 ```dotenv
@@ -227,7 +227,7 @@ AWS_USE_PATH_STYLE_ENDPOINT=true
 To serve through a CDN or custom domain, set the base URL explicitly:
 
 ```dotenv
-MEDIA_URL=https://cdn.roserabloom.pk
+MEDIA_URL=https://cdn.arshwearfragrance.pk
 ```
 
 ### How it works
@@ -738,12 +738,12 @@ Every seeded account uses the password `password`:
 
 | Email | Role |
 | --- | --- |
-| `admin@roserabloom.test` | super-admin |
-| `manager@roserabloom.test` | manager |
-| `catalog@roserabloom.test` | catalog-manager |
-| `support@roserabloom.test` | support |
-| `seller@roserabloom.test` | seller |
-| `customer@roserabloom.test` | none (storefront only) |
+| `admin@arshwearfragrance.test` | super-admin |
+| `manager@arshwearfragrance.test` | manager |
+| `catalog@arshwearfragrance.test` | catalog-manager |
+| `support@arshwearfragrance.test` | support |
+| `seller@arshwearfragrance.test` | seller |
+| `customer@arshwearfragrance.test` | none (storefront only) |
 
 ### Seller role
 

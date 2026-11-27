@@ -28,7 +28,7 @@ class CatalogSeeder extends Seeder
 {
     public function run(): void
     {
-        $brands = collect(['Rosera Bloom', 'D&J Collective', 'Atelier Noir'])
+        $brands = collect(['ARSH Wear & Fragrance', 'D&J Collective', 'Atelier Noir'])
             ->mapWithKeys(fn (string $name): array => [
                 $name => Brand::firstOrCreate(['name' => $name]),
             ]);
@@ -178,7 +178,7 @@ class CatalogSeeder extends Seeder
                 'featured' => true,
                 'fabric' => 'Lawn cotton',
                 'fit' => 'Relaxed straight cut · model is 5\'7 wearing M',
-                'brand' => 'Rosera Bloom',
+                'brand' => 'ARSH Wear & Fragrance',
                 'categories' => ['Pret & Ready to Wear', 'Unstitched Lawn'],
                 'default' => 1,
                 'variants' => $this->sizeColorMatrix(
@@ -220,7 +220,7 @@ class CatalogSeeder extends Seeder
                 'description' => 'Breezy linen shirt and trouser co-ord. Pre-shrunk and garment washed for a soft hand feel.',
                 'fabric' => 'Washed linen',
                 'fit' => 'Oversized',
-                'brand' => 'Rosera Bloom',
+                'brand' => 'ARSH Wear & Fragrance',
                 'categories' => ['Pret & Ready to Wear'],
                 'variants' => $this->sizeColorMatrix(
                     ['S', 'M', 'L', 'XL'],
@@ -244,7 +244,7 @@ class CatalogSeeder extends Seeder
                 'description' => 'A warm rose and oud composition built for evening wear. Top: Taif rose · Heart: oud, saffron · Base: amber, musk.',
                 'longevity' => '8–10 hours',
                 'featured' => true,
-                'brand' => 'Rosera Bloom',
+                'brand' => 'ARSH Wear & Fragrance',
                 'categories' => ['Eau de Parfum'],
                 'default' => 1,
                 'variants' => $this->volumeMatrix([

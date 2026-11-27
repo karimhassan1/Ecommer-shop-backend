@@ -66,8 +66,8 @@ class PageContent extends Model
         ],
         'about' => [
             'badge' => 'Our story',
-            'title' => 'Wear & Fragrance',
-            'subtitle' => 'Fashion. Fragrance. Confidence. We are a premium fashion and fragrance brand built on timeless design, quality products and unmatched style and elegance.',
+            'title' => 'ARSH Wear & Fragrance',
+            'subtitle' => 'Fashion. Fragrance. Confidence. ARSH Wear & Fragrance is a premium fashion and fragrance house built on timeless design, quality products and unmatched style and elegance.',
             'hero_image' => '',
             'cta_label' => 'Our Journey',
             'cta_url' => '/contact',
