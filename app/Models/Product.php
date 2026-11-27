@@ -74,10 +74,10 @@ use Nodesol\LaraQL\Attributes\Model as AttributesModel;
         'in_stock' => 'Boolean!',
         'total_stock' => 'Int!',
         'primary_image' => 'String',
-        'card_images' => '[String!]!',
         'lowest_price' => 'Float!',
         'discount_percent' => 'Int!',
         'sizes' => '[String!]!',
+        'card_images' => '[String!]!',
     ],
 )]
 class Product extends Model
