@@ -7,12 +7,16 @@ use App\Models\FabricType;
 use Nodesol\LaraQL\Attributes\Query;
 
 /**
- * Every fabric type with the number of products made of it, for the admin
- * screen.
+ * Every active fabric type with the number of products made of it.
  *
- * Unlike the storefront facet (which hides fabrics nothing is made of) this
- * lists the whole table, so an administrator can see a fabric they created but
- * have not used yet.
+ * This is the same list the product form's "Fabric type" picker uses, so it
+ * deliberately lists *every* active fabric, not only the ones something is
+ * already made of: a fabric an administrator has just created must be pickable
+ * on the very next product, exactly like a brand or a category.
+ *
+ * Only the *count* is narrowed for a seller (it reports the products they sell,
+ * not the whole shop), because filtering the rows the same way made a brand new
+ * fabric invisible to the person who created it — it has no products yet.
  */
 #[Query(
     name: 'AdminFabricTypes',
@@ -33,17 +37,15 @@ class AdminFabricTypes
 
         $user = $this->requireAdmin();
 
+        // A retired fabric is hidden from the filter and from the picker, so it
+        // is not offered here either.
+        $countScope = fn ($query) => $user->isSeller()
+            ? $query->where('products.seller_id', $user->id)
+            : $query;
+
         return FabricType::query()
-            ->withCount('products')
-            // A seller only trades their own catalogue, so the screen counts
-            // *their* products. Staff and administrators see the whole shop.
-            ->when(
-                $user->isSeller(),
-                fn ($query) => $query->whereHas(
-                    'products',
-                    fn ($product) => $product->where('seller_id', $user->id)
-                )
-            )
+            ->where('is_active', true)
+            ->withCount(['products' => $countScope])
             ->when($search !== '', function ($query) use ($search): void {
                 $term = '%'.strtolower($search).'%';
 
